@@ -11,8 +11,38 @@ jobs:
     uses: Mitchou10/github-workflow/.github/workflows/scan-gitleaks.yml@v0
     permissions:
       contents: read
+      security-events: write   # only needed with SECURITY_TAB
     # with:
+    #   SECURITY_TAB: true             # findings in the GitHub Security tab
     #   FULL_HISTORY: true             # scan the whole history, not only the new commits
     #   CONFIG_FILE: ci/gitleaks.toml  # default: .gitleaks.toml if present, else the default rules
     #   FAIL_ON_LEAKS: false           # report only
     #   GITLEAKS_VERSION: "8.30.1"
+
+  trivy-fs:
+    uses: Mitchou10/github-workflow/.github/workflows/scan-trivy.yml@v0
+    permissions:
+      contents: read
+    # with:
+    #   SEVERITY: "CRITICAL,HIGH"      # default
+    #   SECURITY_TAB: true             # also grant security-events: write
+
+  trivy-config:
+    uses: Mitchou10/github-workflow/.github/workflows/scan-trivy.yml@v0
+    permissions:
+      contents: read
+    with:
+      SCAN_TYPE: config
+      TARGET: .                        # for example helm/ or a Dockerfile directory
+
+  # After the image is pushed:
+  # trivy-image:
+  #   needs: build
+  #   uses: Mitchou10/github-workflow/.github/workflows/scan-trivy.yml@v0
+  #   permissions:
+  #     contents: read
+  #     packages: read
+  #   with:
+  #     SCAN_TYPE: image
+  #     TARGET: ghcr.io/owner/app:1.2.3
+  #     CATEGORY: trivy-app

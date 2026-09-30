@@ -1,0 +1,225 @@
+name: Scan Trivy
+
+# Reusable workflow: Trivy scan of the repository files, of its configuration
+# (IaC: Dockerfile, Kubernetes, Helm, Terraform) or of a container image.
+#
+#   SCAN_TYPE=fs      vulnerabilities and secrets in the files under TARGET
+#   SCAN_TYPE=config  misconfigurations (Dockerfile, Kubernetes, Helm, Terraform...)
+#   SCAN_TYPE=image   vulnerabilities of the image TARGET (a registry reference)
+#
+# Permissions: the job declares none, so it gets those of the calling job.
+# Grant `contents: read`; add `security-events: write` when SECURITY_TAB is on,
+# and `packages: read` to scan a private image on ghcr.io.
+# (Declaring them here would force every caller to grant them.)
+
+on:
+  workflow_call:
+    inputs:
+      SCAN_TYPE:
+        description: "What to scan: fs, config or image"
+        type: string
+        required: false
+        default: fs
+      TARGET:
+        description: Path to scan (fs, config) or image reference (image), for example ghcr.io/owner/app:1.2.3
+        type: string
+        required: false
+        default: .
+      SEVERITY:
+        description: Comma-separated severities to report
+        type: string
+        required: false
+        default: CRITICAL,HIGH
+      IGNORE_UNFIXED:
+        description: Ignore vulnerabilities that have no fix yet
+        type: boolean
+        required: false
+        default: true
+      SCANNERS:
+        description: >-
+          Comma-separated scanners (vuln, secret, misconfig, license). Empty
+          uses Trivy's default for the scan type.
+        type: string
+        required: false
+        default: ""
+      TRIVYIGNORES:
+        description: >-
+          Comma-separated ignore files, relative to the repository root. Empty
+          uses .trivyignore.yaml when it exists (Trivy already reads a plain
+          .trivyignore by itself).
+        type: string
+        required: false
+        default: ""
+      CONFIG_FILE:
+        description: Trivy configuration file (trivy.yaml), relative to the repository root
+        type: string
+        required: false
+        default: ""
+      TRIVY_VERSION:
+        description: Trivy version
+        type: string
+        required: false
+        default: v0.70.0
+      TIMEOUT:
+        description: Scan timeout as a Go duration (for example 15m). Empty uses Trivy's 5m.
+        type: string
+        required: false
+        default: ""
+      SECURITY_TAB:
+        description: >-
+          Upload the findings to the GitHub Security tab (code scanning). The
+          calling job must grant `security-events: write`, and private
+          repositories need GitHub Advanced Security.
+        type: boolean
+        required: false
+        default: false
+      CATEGORY:
+        description: >-
+          Code scanning category of the upload. Empty means trivy-SCAN_TYPE. Give
+          each image its own value: uploads that share a category replace each other.
+        type: string
+        required: false
+        default: ""
+      FAIL_ON_FINDINGS:
+        description: Fail the workflow when a finding matches SEVERITY
+        type: boolean
+        required: false
+        default: true
+      RUNS_ON:
+        description: Runner labels as JSON array
+        type: string
+        required: false
+        default: '["ubuntu-24.04"]'
+    secrets:
+      REGISTRY_USERNAME:
+        description: Registry username, to scan a private image (not needed on ghcr.io)
+        required: false
+      REGISTRY_PASSWORD:
+        description: Registry password or token
+        required: false
+    outputs:
+      findings:
+        description: "true when at least one finding matched SEVERITY"
+        value: ${{ jobs.trivy.outputs.findings }}
+
+jobs:
+  trivy:
+    name: Trivy ${{ inputs.SCAN_TYPE }}
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    outputs:
+      findings: ${{ steps.gate.outputs.findings }}
+    env:
+      REPORT_FORMAT: ${{ inputs.SECURITY_TAB && 'sarif' || 'table' }}
+    steps:
+      - name: Validate inputs
+        env:
+          SCAN_TYPE: ${{ inputs.SCAN_TYPE }}
+          TARGET: ${{ inputs.TARGET }}
+        run: |
+          case "$SCAN_TYPE" in
+            fs|config|image) ;;
+            *) echo "::error::SCAN_TYPE must be 'fs', 'config' or 'image', got '$SCAN_TYPE'"; exit 1 ;;
+          esac
+          if [ "$SCAN_TYPE" = "image" ] && [ "$TARGET" = "." ]; then
+            echo "::error::TARGET must be an image reference when SCAN_TYPE is 'image'."
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Find ignore file
+        id: ignore
+        env:
+          TRIVYIGNORES: ${{ inputs.TRIVYIGNORES }}
+        run: |
+          if [ -n "$TRIVYIGNORES" ]; then
+            echo "files=$TRIVYIGNORES" >> "$GITHUB_OUTPUT"
+          elif [ -f .trivyignore.yaml ]; then
+            echo "files=.trivyignore.yaml" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trivy
+        id: scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+        with:
+          scan-type: ${{ inputs.SCAN_TYPE }}
+          scan-ref: ${{ inputs.SCAN_TYPE != 'image' && inputs.TARGET || '.' }}
+          image-ref: ${{ inputs.SCAN_TYPE == 'image' && inputs.TARGET || '' }}
+          format: ${{ env.REPORT_FORMAT }}
+          output: trivy-results.${{ env.REPORT_FORMAT }}
+          severity: ${{ inputs.SEVERITY }}
+          # Without it the SARIF report ignores SEVERITY and lists everything.
+          limit-severities-for-sarif: true
+          ignore-unfixed: ${{ inputs.IGNORE_UNFIXED }}
+          scanners: ${{ inputs.SCANNERS }}
+          trivyignores: ${{ steps.ignore.outputs.files }}
+          trivy-config: ${{ inputs.CONFIG_FILE }}
+          version: ${{ inputs.TRIVY_VERSION }}
+          timeout: ${{ inputs.TIMEOUT }}
+          exit-code: "1"
+          github-pat: ${{ github.token }}
+        env:
+          TRIVY_USERNAME: ${{ startsWith(inputs.TARGET, 'ghcr.io') && github.actor || secrets.REGISTRY_USERNAME }}
+          TRIVY_PASSWORD: ${{ startsWith(inputs.TARGET, 'ghcr.io') && github.token || secrets.REGISTRY_PASSWORD }}
+        # The scan exits 1 on findings, but the report and the upload must run
+        # afterwards. So this step always continues, and the gate is the
+        # explicit step at the end. (A `continue-on-error` computed from an
+        # input has silently resolved to true before, turning the gate off.)
+        continue-on-error: true
+
+      - name: Summarise
+        if: ${{ !cancelled() && steps.scan.outcome != 'skipped' }}
+        env:
+          TARGET: ${{ inputs.TARGET }}
+          SCAN_TYPE: ${{ inputs.SCAN_TYPE }}
+        run: |
+          report="trivy-results.$REPORT_FORMAT"
+          [ -f "$report" ] || exit 0
+          {
+            echo "## Trivy $SCAN_TYPE: \`$TARGET\`"
+            if [ "$REPORT_FORMAT" = "table" ]; then
+              echo '```'
+              # The step summary is capped at 1 MiB and a write over the cap is dropped whole.
+              head -c 900000 "$report"
+              echo '```'
+            else
+              echo "$(jq '[.runs[].results[]] | length' "$report") finding(s), see the Security tab."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload findings to the Security tab
+        id: upload
+        if: ${{ !cancelled() && inputs.SECURITY_TAB && steps.scan.outcome != 'skipped' }}
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd  # v4.38.1
+        with:
+          sarif_file: trivy-results.sarif
+          category: ${{ inputs.CATEGORY || format('trivy-{0}', inputs.SCAN_TYPE) }}
+        continue-on-error: true
+
+      - name: Warn when the upload failed
+        if: ${{ steps.upload.outcome == 'failure' }}
+        run: |
+          echo "::warning::The findings could not be uploaded to the Security tab. The calling job needs 'security-events: write', and private repositories need GitHub Advanced Security."
+          echo ":warning: Findings not uploaded to the Security tab." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Gate
+        id: gate
+        env:
+          OUTCOME: ${{ steps.scan.outcome }}
+          FAIL_ON_FINDINGS: ${{ inputs.FAIL_ON_FINDINGS }}
+        run: |
+          # The scan step always continues, so its outcome is the only signal.
+          # Trivy exits 1 for findings but also for a scan that failed to run;
+          # a report file tells them apart.
+          if [ "$OUTCOME" = "success" ]; then
+            echo "findings=false" >> "$GITHUB_OUTPUT"
+          elif [ -f "trivy-results.$REPORT_FORMAT" ]; then
+            echo "findings=true" >> "$GITHUB_OUTPUT"
+            if [ "$FAIL_ON_FINDINGS" = "true" ]; then
+              echo "::error::Trivy found issues matching the configured severity."
+              exit 1
+            fi
+          else
+            echo "::error::The Trivy scan did not complete, see its log."
+            exit 1
+          fi
