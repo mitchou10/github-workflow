@@ -1,0 +1,17 @@
+# Copy to .github/workflows/lint-commits.yml in your project (or add the job to your CI).
+name: Lint commits
+
+on:
+  pull_request:
+
+jobs:
+  lint-commits:
+    uses: Mitchou10/github-workflow/.github/workflows/lint-commits.yml@v0
+    permissions:
+      contents: read
+    # with:
+    #   LINT_PR_TITLE: true          # squash merges: the PR title becomes the commit
+    #   ALLOWED_TYPES: "feat,fix,docs,chore"
+    #   REQUIRE_SCOPE: true
+    #   MAX_HEADER_LENGTH: 72
+    #   CONFIG_FILE: commitlint.config.mjs   # your own config, replaces the options above

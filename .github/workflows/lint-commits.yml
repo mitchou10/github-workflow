@@ -1,0 +1,125 @@
+name: Lint commits
+
+# Reusable workflow: checks that commit messages follow Conventional Commits
+# (release-please relies on them to compute versions and changelogs).
+#
+# On a pull request it lints every commit of the PR; on a push, the pushed
+# commits. With a squash-merge policy the PR title becomes the commit, so set
+# LINT_PR_TITLE as well.
+
+on:
+  workflow_call:
+    inputs:
+      ALLOWED_TYPES:
+        description: Comma-separated list of allowed commit types
+        type: string
+        required: false
+        default: feat,fix,docs,style,refactor,perf,test,build,ci,chore,revert
+      REQUIRE_SCOPE:
+        description: Require a scope (for example feat(api) rather than feat)
+        type: boolean
+        required: false
+        default: false
+      MAX_HEADER_LENGTH:
+        description: Maximum length of the first line, prefix (type and scope) included
+        type: number
+        required: false
+        default: 100
+      LINT_PR_TITLE:
+        description: On pull requests, also lint the PR title (useful with squash merges)
+        type: boolean
+        required: false
+        default: false
+      CONFIG_FILE:
+        description: Path to your own commitlint config in the repository. Replaces the options above.
+        type: string
+        required: false
+        default: ""
+      RUNS_ON:
+        description: Runner labels as JSON array
+        type: string
+        required: false
+        default: '["ubuntu-24.04"]'
+
+jobs:
+  commitlint:
+    name: Lint commit messages
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    permissions:
+      contents: read
+    env:
+      COMMITLINT_ALLOWED_TYPES: ${{ inputs.ALLOWED_TYPES }}
+      COMMITLINT_REQUIRE_SCOPE: ${{ inputs.REQUIRE_SCOPE }}
+      COMMITLINT_MAX_HEADER_LENGTH: ${{ inputs.MAX_HEADER_LENGTH }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Exact versions: this is third-party code run in the job, a range would
+      # let an upstream release change what runs without any change here.
+      - name: Install commitlint
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/commitlint"
+          cd "$RUNNER_TEMP/commitlint"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund @commitlint/cli@19.8.1 @commitlint/config-conventional@19.8.1
+
+      # Static program text: the options are read from the environment at lint
+      # time, so no workflow input ever becomes part of the JavaScript.
+      - name: Write default config
+        if: ${{ inputs.CONFIG_FILE == '' }}
+        run: |
+          cat > "$RUNNER_TEMP/commitlint/commitlint.config.mjs" << 'EOF'
+          const types = (process.env.COMMITLINT_ALLOWED_TYPES ?? '')
+            .split(',').map((t) => t.trim()).filter(Boolean);
+          const requireScope = process.env.COMMITLINT_REQUIRE_SCOPE === 'true';
+          const maxLength = Number(process.env.COMMITLINT_MAX_HEADER_LENGTH ?? 100);
+
+          export default {
+            extends: ['@commitlint/config-conventional'],
+            rules: {
+              'type-enum': [2, 'always', types],
+              'scope-empty': requireScope ? [2, 'never'] : [0],
+              'header-max-length': [2, 'always', maxLength],
+            },
+          };
+          EOF
+
+      - name: Lint commits
+        env:
+          CONFIG_FILE: ${{ inputs.CONFIG_FILE }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          bin="$RUNNER_TEMP/commitlint/node_modules/.bin/commitlint"
+          config="${CONFIG_FILE:+$PWD/$CONFIG_FILE}"
+          config="${config:-$RUNNER_TEMP/commitlint/commitlint.config.mjs}"
+
+          if [ -n "$PR_BASE_SHA" ]; then
+            from="$PR_BASE_SHA"; to="$PR_HEAD_SHA"
+          elif [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            from="$PUSH_BEFORE"; to="$PUSH_AFTER"
+          else
+            # New branch or manual run: only the tip commit.
+            from="$PUSH_AFTER~1"; to="$PUSH_AFTER"
+          fi
+
+          echo "Linting $from..$to"
+          "$bin" --config "$config" --from "$from" --to "$to" --verbose
+
+      - name: Lint pull request title
+        if: ${{ inputs.LINT_PR_TITLE && github.event_name == 'pull_request' }}
+        env:
+          CONFIG_FILE: ${{ inputs.CONFIG_FILE }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          bin="$RUNNER_TEMP/commitlint/node_modules/.bin/commitlint"
+          config="${CONFIG_FILE:+$PWD/$CONFIG_FILE}"
+          config="${config:-$RUNNER_TEMP/commitlint/commitlint.config.mjs}"
+          printf '%s\n' "$PR_TITLE" | "$bin" --config "$config" --verbose
