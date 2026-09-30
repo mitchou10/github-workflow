@@ -1,0 +1,199 @@
+name: Release Please
+
+# Reusable workflow: opens/updates the release pull request and, once it is
+# merged, creates the tag and the GitHub Release.
+#
+# Works in two modes:
+#   - single branch (default): only RELEASE_BRANCH is released.
+#   - two branches (ENABLE_PRERELEASE): PRERELEASE_BRANCH gets its own config
+#     and manifest (typically `rc` versions), RELEASE_BRANCH the stable ones.
+#
+# Caller example: see examples/release-please/caller.yml
+
+on:
+  workflow_call:
+    inputs:
+      RELEASE_BRANCH:
+        description: Branch stable releases are cut on
+        type: string
+        required: false
+        default: main
+      PRERELEASE_BRANCH:
+        description: Branch prereleases are cut on (only used with ENABLE_PRERELEASE)
+        type: string
+        required: false
+        default: dev
+      ENABLE_PRERELEASE:
+        description: Use the prerelease config/manifest on PRERELEASE_BRANCH
+        type: boolean
+        required: false
+        default: false
+      RELEASE_CONFIG_FILE:
+        description: Release-please config for the release branch
+        type: string
+        required: false
+        default: release-please-config.json
+      RELEASE_MANIFEST_FILE:
+        description: Release-please manifest for the release branch
+        type: string
+        required: false
+        default: .release-please-manifest.json
+      PRERELEASE_CONFIG_FILE:
+        description: Release-please config for the prerelease branch
+        type: string
+        required: false
+        default: release-please-config-rc.json
+      PRERELEASE_MANIFEST_FILE:
+        description: Release-please manifest for the prerelease branch
+        type: string
+        required: false
+        default: .release-please-manifest-rc.json
+      TAG_MAJOR_AND_MINOR:
+        description: Also move the floating vX and vX.Y tags on release
+        type: boolean
+        required: false
+        default: false
+      AUTOMERGE:
+        description: >-
+          Queue the release pull request for auto-merge (needs "Allow
+          auto-merge" on the repo and an App/PAT credential to be useful).
+        type: boolean
+        required: false
+        default: false
+      RUNS_ON:
+        description: Runner labels as JSON array
+        type: string
+        required: false
+        default: '["ubuntu-24.04"]'
+    secrets:
+      APP_CLIENT_ID:
+        description: GitHub App client ID (with APP_PRIVATE_KEY). Preferred over GH_PAT.
+        required: false
+      APP_PRIVATE_KEY:
+        description: GitHub App private key (PEM)
+        required: false
+      GH_PAT:
+        description: Personal access token, alternative to the GitHub App
+        required: false
+    outputs:
+      release-created:
+        description: Whether a release was created
+        value: ${{ jobs.release.outputs.release-created }}
+      version:
+        description: Full semver of the release
+        value: ${{ jobs.release.outputs.version }}
+      tag-name:
+        description: Tag of the release
+        value: ${{ jobs.release.outputs.tag-name }}
+      pr-created:
+        description: Whether a release pull request was created or updated
+        value: ${{ jobs.release.outputs.pr-created }}
+
+jobs:
+  release:
+    name: Release Please
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      release-created: ${{ steps.release.outputs.release_created }}
+      version: ${{ steps.release.outputs.version }}
+      tag-name: ${{ steps.release.outputs.tag_name }}
+      pr-created: ${{ steps.release.outputs.prs_created }}
+    env:
+      HAS_APP_AUTH: ${{ secrets.APP_CLIENT_ID != '' && secrets.APP_PRIVATE_KEY != '' }}
+      HAS_PARTIAL_APP_AUTH: ${{ (secrets.APP_CLIENT_ID != '') != (secrets.APP_PRIVATE_KEY != '') }}
+      IS_PRERELEASE_BRANCH: ${{ inputs.ENABLE_PRERELEASE && github.ref_name == inputs.PRERELEASE_BRANCH }}
+    steps:
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          if [ "$HAS_PARTIAL_APP_AUTH" = "true" ]; then
+            echo "::error::APP_CLIENT_ID and APP_PRIVATE_KEY must be supplied together."
+            exit 1
+          fi
+
+      # An App/PAT token (unlike GITHUB_TOKEN) lets the release PR trigger
+      # `pull_request` workflows, so its CI actually runs.
+      - name: Generate GitHub App token
+        id: app-token
+        if: ${{ env.HAS_APP_AUTH == 'true' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+
+      # Default GITHUB_TOKEN on purpose: the git pushes below must not
+      # re-trigger the caller's pipeline.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Release new version
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7  # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token || secrets.GH_PAT || github.token }}
+          target-branch: ${{ github.ref_name }}
+          config-file: ${{ env.IS_PRERELEASE_BRANCH == 'true' && inputs.PRERELEASE_CONFIG_FILE || inputs.RELEASE_CONFIG_FILE }}
+          manifest-file: ${{ env.IS_PRERELEASE_BRANCH == 'true' && inputs.PRERELEASE_MANIFEST_FILE || inputs.RELEASE_MANIFEST_FILE }}
+
+      - name: Tag major and minor versions
+        # Release branch only: a release candidate must never move vX / vX.Y.
+        if: ${{ steps.release.outputs.release_created && inputs.TAG_MAJOR_AND_MINOR && github.ref_name == inputs.RELEASE_BRANCH }}
+        env:
+          MAJOR: ${{ steps.release.outputs.major }}
+          MINOR: ${{ steps.release.outputs.minor }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$MAJOR" =~ ^[0-9]+$ ]] || [[ ! "$MINOR" =~ ^[0-9]+$ ]]; then
+            echo "::error::Expected numeric major/minor, got '$MAJOR'/'$MINOR'"
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git fetch --tags
+          for tag in "v$MAJOR" "v$MAJOR.$MINOR"; do
+            git tag -f -a "$tag" -m "Release $tag"
+            git push --force origin "refs/tags/$tag"
+          done
+
+      - name: Keep prerelease manifest in sync
+        if: ${{ inputs.ENABLE_PRERELEASE && github.ref_name == inputs.RELEASE_BRANCH && steps.release.outputs.prs_created == 'true' }}
+        env:
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr || '{}').number }}
+          PR_BRANCH: ${{ fromJSON(steps.release.outputs.pr || '{}').headBranchName }}
+          RELEASE_MANIFEST_FILE: ${{ inputs.RELEASE_MANIFEST_FILE }}
+          PRERELEASE_MANIFEST_FILE: ${{ inputs.PRERELEASE_MANIFEST_FILE }}
+          PUSH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          [ -n "$PR_BRANCH" ] || exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git fetch origin "$PR_BRANCH"
+          git checkout -B "$PR_BRANCH" "origin/$PR_BRANCH"
+          if [ -f "$PRERELEASE_MANIFEST_FILE" ] && cmp -s "$RELEASE_MANIFEST_FILE" "$PRERELEASE_MANIFEST_FILE"; then
+            echo "Manifests already in sync"
+            exit 0
+          fi
+          cp "$RELEASE_MANIFEST_FILE" "$PRERELEASE_MANIFEST_FILE"
+          git add "$PRERELEASE_MANIFEST_FILE"
+          git commit --amend --no-edit
+          git push --force-with-lease "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$PR_BRANCH"
+
+      - name: Enable auto-merge on release PR
+        if: ${{ inputs.AUTOMERGE && steps.release.outputs.prs_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GH_PAT }}
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr || '{}').number }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::AUTOMERGE needs APP_CLIENT_ID/APP_PRIVATE_KEY or GH_PAT."
+            exit 1
+          fi
+          gh pr merge "$PR_NUMBER" --auto --squash --repo "$GITHUB_REPOSITORY"

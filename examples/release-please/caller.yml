@@ -1,0 +1,41 @@
+# Copy to .github/workflows/release.yml in your project.
+name: Release
+
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+# Never run two releases on the same branch at once.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # @v0 follows the latest 0.x release; use @main only to test unreleased changes.
+    uses: Mitchou10/github-workflow/.github/workflows/release-please.yml@v0
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    with:
+      ENABLE_PRERELEASE: true # dev = release candidates, main = stable
+      TAG_MAJOR_AND_MINOR: false
+    # secrets:
+    #   APP_CLIENT_ID: ${{ secrets.APP_CLIENT_ID }}
+    #   APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+
+  # Must be the LAST job: keeps dev = main + unreleased work after a release.
+  sync-prerelease-branch:
+    needs: release
+    if: github.ref_name == 'main' && needs.release.outputs.release-created == 'true'
+    uses: Mitchou10/github-workflow/.github/workflows/sync-prerelease-branch.yml@v0
+    permissions:
+      contents: write
+
+  # Chain your own jobs on the release, e.g. build/push an image:
+  # build:
+  #   needs: release
+  #   if: needs.release.outputs.release-created == 'true'
+  #   ...  ${{ needs.release.outputs.version }}

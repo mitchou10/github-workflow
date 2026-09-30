@@ -1,0 +1,105 @@
+name: Sync prerelease branch
+
+# Reusable workflow. Keeps one invariant true: the prerelease branch (dev) is
+# the release branch (main) plus only the work not released yet.
+#
+# A release lands commits on main that dev does not have (release commit,
+# CHANGELOG, manifest). Without this, dev computes its next rc from a stale
+# base and can publish a version BELOW the one just released.
+#
+# Call it as the LAST job of your release pipeline, after every job that
+# commits to the release branch.
+
+on:
+  workflow_call:
+    inputs:
+      RELEASE_BRANCH:
+        description: Branch to synchronise FROM
+        type: string
+        required: false
+        default: main
+      PRERELEASE_BRANCH:
+        description: Branch to synchronise
+        type: string
+        required: false
+        default: dev
+      CREATE_IF_MISSING:
+        description: Create PRERELEASE_BRANCH from RELEASE_BRANCH when it does not exist
+        type: boolean
+        required: false
+        default: true
+      RUNS_ON:
+        description: Runner labels as JSON array
+        type: string
+        required: false
+        default: '["ubuntu-24.04"]'
+
+jobs:
+  sync:
+    name: Sync prerelease branch
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    permissions:
+      contents: write
+    steps:
+      - name: Validate inputs
+        env:
+          RELEASE_BRANCH: ${{ inputs.RELEASE_BRANCH }}
+          PRERELEASE_BRANCH: ${{ inputs.PRERELEASE_BRANCH }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RELEASE_BRANCH" ] || [ -z "$PRERELEASE_BRANCH" ]; then
+            echo "::error::RELEASE_BRANCH and PRERELEASE_BRANCH must both be set."
+            exit 1
+          fi
+          if [ "$RELEASE_BRANCH" = "$PRERELEASE_BRANCH" ]; then
+            echo "::error::RELEASE_BRANCH and PRERELEASE_BRANCH must differ."
+            exit 1
+          fi
+
+      # Default GITHUB_TOKEN on purpose: it cannot trigger workflows, so the
+      # force-push on dev does not start a prerelease run. Do NOT add `token:`.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Rebase ${{ inputs.PRERELEASE_BRANCH }} on ${{ inputs.RELEASE_BRANCH }}
+        env:
+          RELEASE_BRANCH: ${{ inputs.RELEASE_BRANCH }}
+          PRERELEASE_BRANCH: ${{ inputs.PRERELEASE_BRANCH }}
+          CREATE_IF_MISSING: ${{ inputs.CREATE_IF_MISSING }}
+        run: |
+          set -euo pipefail
+
+          if ! git ls-remote --exit-code --heads origin "$PRERELEASE_BRANCH" >/dev/null 2>&1; then
+            if [ "$CREATE_IF_MISSING" != "true" ]; then
+              echo "'$PRERELEASE_BRANCH' does not exist, nothing to do"
+              exit 0
+            fi
+            echo "Creating '$PRERELEASE_BRANCH' from '$RELEASE_BRANCH'"
+            git fetch origin "$RELEASE_BRANCH"
+            git checkout -b "$PRERELEASE_BRANCH" "origin/$RELEASE_BRANCH"
+            git push origin "$PRERELEASE_BRANCH"
+            exit 0
+          fi
+
+          # The default checkout is shallow: without shared history the rebase
+          # would replay all of dev and conflict on every file.
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+            git fetch --unshallow origin "$RELEASE_BRANCH" "$PRERELEASE_BRANCH"
+          fi
+          git fetch origin "$RELEASE_BRANCH" "$PRERELEASE_BRANCH"
+
+          git checkout "$PRERELEASE_BRANCH"
+          git reset --hard "origin/$PRERELEASE_BRANCH"
+
+          # Steady state: plain fast-forward, nothing replayed.
+          if git rebase "origin/$RELEASE_BRANCH"; then
+            git push --force-with-lease origin "$PRERELEASE_BRANCH"
+          else
+            git rebase --abort || true
+            echo "::error::Rebase of '$PRERELEASE_BRANCH' onto '$RELEASE_BRANCH' conflicts. Resolve by hand: until then '$PRERELEASE_BRANCH' computes versions from a stale base."
+            exit 1
+          fi
