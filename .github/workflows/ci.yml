@@ -13,3 +13,12 @@ jobs:
       contents: read
     with:
       LINT_PR_TITLE: true
+
+  # The only check to require in the branch protection: it goes green when
+  # every job listed in `needs` did.
+  gate:
+    if: ${{ always() }}
+    needs: [lint-commits]
+    uses: ./.github/workflows/status-gate.yml
+    with:
+      NEEDS: ${{ toJSON(needs) }}

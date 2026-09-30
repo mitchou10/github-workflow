@@ -59,6 +59,7 @@ on:
         description: Trivy version
         type: string
         required: false
+        # renovate: datasource=github-releases depName=aquasecurity/trivy
         default: v0.70.0
       TIMEOUT:
         description: Scan timeout as a Go duration (for example 15m). Empty uses Trivy's 5m.

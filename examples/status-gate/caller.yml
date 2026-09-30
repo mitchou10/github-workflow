@@ -1,0 +1,24 @@
+# Copy to .github/workflows/ci.yml. The gate is the ONLY check to require in the branch protection.
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  lint-commits:
+    uses: Mitchou10/github-workflow/.github/workflows/lint-commits.yml@v0
+    permissions:
+      contents: read
+
+  lint:
+    uses: Mitchou10/github-workflow/.github/workflows/python-lint.yml@v0
+    permissions:
+      contents: read
+
+  # Add every job of this workflow to `needs`.
+  gate:
+    if: ${{ always() }}
+    needs: [lint-commits, lint]
+    uses: Mitchou10/github-workflow/.github/workflows/status-gate.yml@v0
+    with:
+      NEEDS: ${{ toJSON(needs) }}
