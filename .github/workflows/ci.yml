@@ -1,0 +1,15 @@
+name: CI
+
+# Checks this repository's own pull requests with its own reusable workflows.
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  lint-commits:
+    uses: ./.github/workflows/lint-commits.yml
+    permissions:
+      contents: read
+    with:
+      LINT_PR_TITLE: true
