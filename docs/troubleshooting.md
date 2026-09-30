@@ -62,3 +62,14 @@ permissions:
 
 Pull requests from forks get a read-only token and cannot upload. Private repositories also need GitHub
 Advanced Security for code scanning. The scan itself still runs and `FAIL_ON_LEAKS` / `FAIL_ON_FINDINGS` still apply.
+
+## `No chart changes detected` / no chart linted
+
+chart-testing only looks at the **subdirectories** of `CHART_DIRS`, and at changed charts when `ONLY_CHANGED` is
+set. Check that `Chart.yaml` is in a subdirectory (`helm/Chart.yaml`, not `./Chart.yaml`) and that `CHART_DIRS`
+points at its parent. See [lint-helm](lint-helm.md#where-charts-are-found).
+
+## `targetBranch 'origin/main' does not exist`
+
+`ONLY_CHANGED` compares with a remote branch that is not there. Set `TARGET_BRANCH` to an existing branch of the
+repository.
