@@ -1,6 +1,6 @@
 name: Python typecheck
 
-# Reusable workflow: mypy or pyright over a uv-managed project.
+# Reusable workflow: ty (default), mypy or pyright over a uv-managed project.
 # Runs at the repository root by default; set WORKING_DIRECTORY for a
 # sub-project (monorepo). Project dependencies are installed first so imports
 # resolve; the checker itself is added on the fly and need not be a dependency.
@@ -19,10 +19,10 @@ on:
         required: false
         default: "3.12"
       TYPE_CHECKER:
-        description: "Type checker to run: mypy or pyright"
+        description: "Type checker to run: ty, mypy or pyright"
         type: string
         required: false
-        default: mypy
+        default: ty
       TARGET:
         description: Path passed to the checker, relative to WORKING_DIRECTORY
         type: string
@@ -59,8 +59,8 @@ jobs:
           TYPE_CHECKER: ${{ inputs.TYPE_CHECKER }}
         run: |
           case "$TYPE_CHECKER" in
-            mypy|pyright) ;;
-            *) echo "::error::TYPE_CHECKER must be 'mypy' or 'pyright', got '$TYPE_CHECKER'"; exit 1 ;;
+            ty|mypy|pyright) ;;
+            *) echo "::error::TYPE_CHECKER must be 'ty', 'mypy' or 'pyright', got '$TYPE_CHECKER'"; exit 1 ;;
           esac
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -83,4 +83,8 @@ jobs:
           TYPE_CHECKER: ${{ inputs.TYPE_CHECKER }}
           TARGET: ${{ inputs.TARGET }}
           EXTRA_ARGS: ${{ inputs.EXTRA_ARGS }}
-        run: uv run --with "$TYPE_CHECKER" "$TYPE_CHECKER" $EXTRA_ARGS "$TARGET"
+        run: |
+          # ty is invoked as `ty check`, the others take the target directly.
+          sub=()
+          [ "$TYPE_CHECKER" != "ty" ] || sub=(check)
+          uv run --with "$TYPE_CHECKER" "$TYPE_CHECKER" "${sub[@]}" $EXTRA_ARGS "$TARGET"
