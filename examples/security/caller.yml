@@ -1,0 +1,18 @@
+# Copy to .github/workflows/scan-secrets.yml in your project (or add the job to your CI).
+name: Scan secrets
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+jobs:
+  gitleaks:
+    uses: Mitchou10/github-workflow/.github/workflows/scan-gitleaks.yml@v0
+    permissions:
+      contents: read
+    # with:
+    #   FULL_HISTORY: true             # scan the whole history, not only the new commits
+    #   CONFIG_FILE: ci/gitleaks.toml  # default: .gitleaks.toml if present, else the default rules
+    #   FAIL_ON_LEAKS: false           # report only
+    #   GITLEAKS_VERSION: "8.30.1"

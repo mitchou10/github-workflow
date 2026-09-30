@@ -10,6 +10,7 @@ Reusable GitHub Actions workflows, independent from any organisation's shared ca
 | [sync-prerelease-branch.yml](.github/workflows/sync-prerelease-branch.yml) | Rebases `dev` on `main` after a release |
 | [python-lint.yml](.github/workflows/python-lint.yml) | `ruff check` + `ruff format --check` |
 | [python-typecheck.yml](.github/workflows/python-typecheck.yml) | ty (default), mypy or pyright on a uv project |
+| [scan-gitleaks.yml](.github/workflows/scan-gitleaks.yml) | gitleaks: leaked secrets in the git history |
 | [lint-commits.yml](.github/workflows/lint-commits.yml) | commitlint: commits follow Conventional Commits |
 | [python-deadcode.yml](.github/workflows/python-deadcode.yml) | vulture: unused code |
 
