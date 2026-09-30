@@ -11,6 +11,7 @@
 | [python-deadcode](python-deadcode.md) | vulture, confidence levels, false positives |
 | [scan-gitleaks](scan-gitleaks.md) | gitleaks, what is scanned, allowlists |
 | [scan-trivy](scan-trivy.md) | Trivy: fs, config and image scans |
+| [lint-helm](lint-helm.md) | Helm chart lint, helm-docs check |
 | [lint-commits](lint-commits.md) | Conventional Commits check |
 | [Troubleshooting](troubleshooting.md) | Errors met while setting things up |
 
