@@ -8,8 +8,10 @@ Reusable GitHub Actions workflows, independent from any organisation's shared ca
 | --- | --- |
 | [release-please.yml](.github/workflows/release-please.yml) | Release PR, tag and GitHub Release (single branch or `dev` → `main` prerelease flow) |
 | [sync-prerelease-branch.yml](.github/workflows/sync-prerelease-branch.yml) | Rebases `dev` on `main` after a release |
+| [python-lint.yml](.github/workflows/python-lint.yml) | `ruff check` + `ruff format --check` |
+| [python-typecheck.yml](.github/workflows/python-typecheck.yml) | mypy or pyright on a uv project |
 
-Planned: Python lint (ruff), typecheck, vulture.
+Planned: vulture.
 
 ## Usage
 
@@ -23,6 +25,12 @@ using conventional commits: `feat:` → minor, `fix:` → patch, `feat!:` / `BRE
 Every release moves the floating tags `vX` and `vX.Y`, so callers can pin `@v0` (auto-updates),
 `@v0.1` or an exact `@v0.1.2`. A change to any workflow's inputs/outputs that breaks callers must be
 committed as a breaking change.
+
+### python-lint / python-typecheck
+
+Both run at the repository root by default; pass `WORKING_DIRECTORY` to target a sub-project.
+See [examples/python/caller.yml](examples/python/caller.yml) for all inputs. Ruff reads the config of
+`pyproject.toml` / `ruff.toml` in that directory. The typecheck needs a uv project (`uv sync`).
 
 ### release-please
 
