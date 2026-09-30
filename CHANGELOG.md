@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.0](https://github.com/mitchou10/github-workflow/compare/v0.1.0...v0.2.0) (2026-09-30)
+
+
+### Features
+
+* add reusable python lint (ruff) and typecheck workflows ([19a51fd](https://github.com/mitchou10/github-workflow/commit/19a51fd68fba5e35060a1f177bd5a0dfd99e8314))
+* default ruff rules with project config and input overrides ([5f8592b](https://github.com/mitchou10/github-workflow/commit/5f8592b2941d6c710b4590fad72973a530ddfda7))
+* use ty as the default type checker ([d3f005e](https://github.com/mitchou10/github-workflow/commit/d3f005e7634194e125c59203fe85a06ed060040c))
+
 ## [0.1.0-rc.3](https://github.com/mitchou10/github-workflow/compare/v0.1.0-rc.2...v0.1.0-rc.3) (2026-09-30)
 
 
