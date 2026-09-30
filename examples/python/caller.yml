@@ -29,3 +29,16 @@ jobs:
     #   TYPE_CHECKER: pyright        # ty | mypy | pyright, default: ty
     #   TARGET: app                  # default: .
     #   SYNC_ARGS: --group dev       # default: --all-groups
+
+  deadcode:
+    uses: Mitchou10/github-workflow/.github/workflows/python-deadcode.yml@v0
+    permissions:
+      contents: read
+    # with:
+    #   WORKING_DIRECTORY: backend       # default: repository root
+    #   PATHS: "app migrations"          # default: .
+    #   MIN_CONFIDENCE: "60"             # default: 80 (only if no project config)
+    #   EXCLUDE: "*/migrations/*"
+    #   IGNORE_NAMES: "visit_*,Meta"
+    #   IGNORE_DECORATORS: "@app.route,@pytest.fixture"
+    #   WHITELIST: whitelist.py
