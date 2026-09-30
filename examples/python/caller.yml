@@ -1,0 +1,27 @@
+# Copy to .github/workflows/ci.yml in your project.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+jobs:
+  lint:
+    uses: Mitchou10/github-workflow/.github/workflows/python-lint.yml@v0
+    permissions:
+      contents: read
+    # with:
+    #   WORKING_DIRECTORY: backend   # default: repository root
+    #   RUFF_VERSION: "0.9.10"       # default: latest
+    #   FORMAT_CHECK: false
+
+  typecheck:
+    uses: Mitchou10/github-workflow/.github/workflows/python-typecheck.yml@v0
+    permissions:
+      contents: read
+    # with:
+    #   WORKING_DIRECTORY: backend   # default: repository root
+    #   TYPE_CHECKER: pyright        # default: mypy
+    #   TARGET: app                  # default: .
+    #   SYNC_ARGS: --group dev       # default: --all-groups
