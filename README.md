@@ -14,6 +14,11 @@ Reusable GitHub Actions workflows, independent from any organisation's shared ca
 
 Planned: vulture.
 
+## Documentation
+
+Full documentation is in [docs/](docs/README.md): [getting started](docs/getting-started.md),
+[release flow](docs/release-flow.md), one page per workflow, and [troubleshooting](docs/troubleshooting.md).
+
 ## Usage
 
 Call a workflow from your project with `uses: Mitchou10/github-workflow/.github/workflows/<name>.yml@v0`.

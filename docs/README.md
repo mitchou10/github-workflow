@@ -1,0 +1,14 @@
+# Documentation
+
+| Page | Content |
+| --- | --- |
+| [Getting started](getting-started.md) | Using the workflows in a project, pinning versions, repository settings |
+| [Release flow](release-flow.md) | `main` / `dev`, release candidates, how versions are computed |
+| [release-please](release-please.md) | Inputs, outputs, authentication, configuration files |
+| [sync-prerelease-branch](sync-prerelease-branch.md) | Keeping `dev` on top of `main` after a release |
+| [python-lint](python-lint.md) | ruff, default rules and overrides |
+| [python-typecheck](python-typecheck.md) | ty, mypy or pyright |
+| [lint-commits](lint-commits.md) | Conventional Commits check |
+| [Troubleshooting](troubleshooting.md) | Errors met while setting things up |
+
+Every input is optional: a workflow called without `with:` uses its defaults.
