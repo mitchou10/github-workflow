@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0-rc.5](https://github.com/mitchou10/github-workflow/compare/v0.1.0-rc.4...v0.1.0-rc.5) (2026-09-30)
+
+
+### Features
+
+* add path filter workflow ([bb2802f](https://github.com/mitchou10/github-workflow/commit/bb2802f0fc306bb10df48597d447ff64c9991f16))
+
 ## [0.1.0-rc.4](https://github.com/mitchou10/github-workflow/compare/v0.1.0-rc.3...v0.1.0-rc.4) (2026-09-30)
 
 
