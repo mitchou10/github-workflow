@@ -1,0 +1,146 @@
+name: Scan secrets
+
+# Reusable workflow: looks for leaked secrets in the git history with gitleaks.
+#
+# Uses the gitleaks CLI (MIT), not gitleaks-action, which needs a paid licence
+# on organisation repositories. The binary is pinned and checked against the
+# release checksums.
+#
+# What is scanned:
+#   - pull request: the commits of the PR;
+#   - push: the pushed commits;
+#   - FULL_HISTORY, a new branch or a force-push: the whole history of HEAD;
+#   - LOG_OPTS, when set, replaces all of the above.
+#
+# Rules: gitleaks' default rules. A `.gitleaks.toml` at the repository root is
+# picked up automatically; CONFIG_FILE points to another one.
+
+on:
+  workflow_call:
+    inputs:
+      GITLEAKS_VERSION:
+        description: Gitleaks version
+        type: string
+        required: false
+        default: 8.30.1
+      CONFIG_FILE:
+        description: Gitleaks config file, relative to the repository root. Empty uses .gitleaks.toml if present, else the default rules.
+        type: string
+        required: false
+        default: ""
+      FULL_HISTORY:
+        description: Scan the whole history of the checked-out ref instead of only the new commits
+        type: boolean
+        required: false
+        default: false
+      LOG_OPTS:
+        description: Revision range handed to `git log` (for example --all). Replaces the automatic range.
+        type: string
+        required: false
+        default: ""
+      FAIL_ON_LEAKS:
+        description: Fail the workflow when a leak is found
+        type: boolean
+        required: false
+        default: true
+      RUNS_ON:
+        description: Runner labels as JSON array
+        type: string
+        required: false
+        default: '["ubuntu-24.04"]'
+    outputs:
+      leaks:
+        description: "true when at least one leak was found"
+        value: ${{ jobs.gitleaks.outputs.leaks }}
+
+jobs:
+  gitleaks:
+    name: Gitleaks
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    permissions:
+      contents: read
+    outputs:
+      leaks: ${{ steps.scan.outputs.leaks }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # Full history: a range needs its base commit, and a secret removed
+          # in a later commit is still in the history.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: ${{ inputs.GITLEAKS_VERSION }}
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64) arch=x64 ;;
+            aarch64 | arm64) arch=arm64 ;;
+            *) echo "::error::Unsupported architecture: $(uname -m)"; exit 1 ;;
+          esac
+          tmp="$(mktemp -d)"
+          cd "$tmp"
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_${arch}.tar.gz"
+          curl -fsSLO "$base/$tarball"
+          curl -fsSLO "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          sha256sum --check --ignore-missing "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          tar -xzf "$tarball" gitleaks
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 gitleaks "$HOME/.local/bin/gitleaks"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Scan
+        id: scan
+        env:
+          CONFIG_FILE: ${{ inputs.CONFIG_FILE }}
+          FULL_HISTORY: ${{ inputs.FULL_HISTORY }}
+          LOG_OPTS: ${{ inputs.LOG_OPTS }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          zeros=0000000000000000000000000000000000000000
+
+          if [ -n "$LOG_OPTS" ]; then
+            range="$LOG_OPTS"
+          elif [ "$FULL_HISTORY" = "true" ]; then
+            range=HEAD
+          elif [ -n "$PR_BASE_SHA" ]; then
+            range="$PR_BASE_SHA..$PR_HEAD_SHA"
+          elif [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "$zeros" ] \
+            && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+            range="$PUSH_BEFORE..$PUSH_AFTER"
+          else
+            # New branch, force-push or manual run: the base is unknown.
+            range=HEAD
+          fi
+
+          args=()
+          [ -z "$CONFIG_FILE" ] || args+=(--config "$CONFIG_FILE")
+
+          echo "Scanning: $range"
+          # Exit code 1 means leaks were found; anything else above 0 is a scan error.
+          code=0
+          gitleaks git . "${args[@]}" \
+            --log-opts "$range" \
+            --redact --no-banner --verbose || code=$?
+
+          if [ "$code" -eq 0 ]; then
+            echo "leaks=false" >> "$GITHUB_OUTPUT"
+            echo ":white_check_mark: No leaked secret found ($range)." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$code" -eq 1 ]; then
+            echo "leaks=true" >> "$GITHUB_OUTPUT"
+            echo ":rotating_light: Potential leaked secrets found ($range), see the job log." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::Gitleaks did not complete (exit code $code)."
+            exit "$code"
+          fi
+
+      - name: Fail on leaks
+        if: ${{ inputs.FAIL_ON_LEAKS && steps.scan.outputs.leaks == 'true' }}
+        run: |
+          echo "::error::Gitleaks found potential leaked secrets. Rotate them: removing them from the code is not enough, they stay in the history."
+          exit 1
