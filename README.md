@@ -29,8 +29,12 @@ committed as a breaking change.
 ### python-lint / python-typecheck
 
 Both run at the repository root by default; pass `WORKING_DIRECTORY` to target a sub-project.
-See [examples/python/caller.yml](examples/python/caller.yml) for all inputs. Ruff reads the config of
-`pyproject.toml` / `ruff.toml` in that directory. The typecheck needs a uv project (`uv sync`).
+See [examples/python/caller.yml](examples/python/caller.yml) for all inputs.
+
+Ruff rules: if the project has its own config (`ruff.toml`, `.ruff.toml` or `[tool.ruff]` in `pyproject.toml`),
+it is used as is. Otherwise the defaults apply (`RULES` = `E,F,I,UP,B`, `LINE_LENGTH` = `120`). Setting the
+`RULES`, `IGNORE`, `LINE_LENGTH` or `CONFIG_FILE` inputs overrides either.
+ The typecheck needs a uv project (`uv sync`).
 
 ### release-please
 

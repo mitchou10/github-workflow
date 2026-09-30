@@ -4,6 +4,12 @@ name: Python lint
 # Runs at the repository root by default; set WORKING_DIRECTORY for a
 # sub-project (monorepo). Ruff reads its config (pyproject.toml / ruff.toml)
 # from that directory, and is run through uvx, so nothing has to be installed.
+#
+# Rules:
+#   - the project has its own ruff config (ruff.toml, .ruff.toml or a
+#     [tool.ruff] table in pyproject.toml): it is used as is;
+#   - otherwise the defaults below apply (RULES, LINE_LENGTH);
+#   - RULES / IGNORE / LINE_LENGTH / CONFIG_FILE, when set, always win.
 
 on:
   workflow_call:
@@ -20,6 +26,28 @@ on:
         default: "3.12"
       RUFF_VERSION:
         description: Ruff version to run (e.g. 0.9.10). Empty uses the latest release.
+        type: string
+        required: false
+        default: ""
+      CONFIG_FILE:
+        description: Ruff config file to use instead of any project or default config (relative to WORKING_DIRECTORY)
+        type: string
+        required: false
+        default: ""
+      RULES:
+        description: >-
+          Comma-separated rule selectors (ruff --select). Empty: the project's
+          config, or E,F,I,UP,B when it has none.
+        type: string
+        required: false
+        default: ""
+      IGNORE:
+        description: Comma-separated rules to ignore (ruff --ignore)
+        type: string
+        required: false
+        default: ""
+      LINE_LENGTH:
+        description: Line length. Empty - the project's config, or 120 when it has none.
         type: string
         required: false
         default: ""
@@ -44,6 +72,12 @@ jobs:
       run:
         working-directory: ${{ inputs.WORKING_DIRECTORY }}
     env:
+      DEFAULT_RULES: E,F,I,UP,B
+      DEFAULT_LINE_LENGTH: "120"
+      CONFIG_FILE: ${{ inputs.CONFIG_FILE }}
+      RULES: ${{ inputs.RULES }}
+      IGNORE: ${{ inputs.IGNORE }}
+      LINE_LENGTH: ${{ inputs.LINE_LENGTH }}
       RUFF: ruff${{ inputs.RUFF_VERSION != '' && format('=={0}', inputs.RUFF_VERSION) || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -53,9 +87,34 @@ jobs:
         with:
           python-version: ${{ inputs.PYTHON_VERSION }}
 
-      - name: Ruff check
-        run: uvx "$RUFF" check .
+      - name: Ruff
+        env:
+          FORMAT_CHECK: ${{ inputs.FORMAT_CHECK }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "$CONFIG_FILE" ]; then
+            args+=(--config "$CONFIG_FILE")
+          elif [ -f ruff.toml ] || [ -f .ruff.toml ] || { [ -f pyproject.toml ] && grep -q '^\[tool\.ruff' pyproject.toml; }; then
+            echo "Using the project's ruff configuration"
+          else
+            echo "No ruff configuration found, applying defaults"
+            RULES="${RULES:-$DEFAULT_RULES}"
+            LINE_LENGTH="${LINE_LENGTH:-$DEFAULT_LINE_LENGTH}"
+          fi
+          [ -z "$LINE_LENGTH" ] || args+=(--line-length "$LINE_LENGTH")
 
-      - name: Ruff format check
-        if: ${{ inputs.FORMAT_CHECK }}
-        run: uvx "$RUFF" format --check .
+          # --select / --ignore are lint options: `ruff format` rejects them.
+          lint_args=("${args[@]}")
+          [ -z "$RULES" ] || lint_args+=(--select "$RULES")
+          [ -z "$IGNORE" ] || lint_args+=(--ignore "$IGNORE")
+
+          echo "::group::ruff check"
+          uvx "$RUFF" check "${lint_args[@]}" .
+          echo "::endgroup::"
+
+          if [ "$FORMAT_CHECK" = "true" ]; then
+            echo "::group::ruff format --check"
+            uvx "$RUFF" format --check "${args[@]}" .
+            echo "::endgroup::"
+          fi

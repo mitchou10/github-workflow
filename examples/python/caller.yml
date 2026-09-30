@@ -14,6 +14,10 @@ jobs:
     # with:
     #   WORKING_DIRECTORY: backend   # default: repository root
     #   RUFF_VERSION: "0.9.10"       # default: latest
+    #   RULES: "E,F,I,UP,B,SIM"      # default: E,F,I,UP,B (only if no project config)
+    #   IGNORE: "E501"
+    #   LINE_LENGTH: "100"           # default: 120 (only if no project config)
+    #   CONFIG_FILE: ci/ruff.toml    # force a config file
     #   FORMAT_CHECK: false
 
   typecheck:
