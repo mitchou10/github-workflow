@@ -7,6 +7,7 @@ Checks that commit messages follow [Conventional Commits](https://www.convention
 name: Lint commits
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
 jobs:
   lint-commits:
     uses: Mitchou10/github-workflow/.github/workflows/lint-commits.yml@v0
@@ -36,8 +37,11 @@ jobs:
 ## Squash merges
 
 When pull requests are squash-merged, the pull request **title** becomes the commit on the target branch, and it
-is what release-please reads. Set `LINT_PR_TITLE: true`, otherwise a correct commit history can still produce an
+is what release-please reads. Set `LINT_PR_TITLE: true` and add `edited` to the `pull_request` types, so that renaming the pull request lints the title again. Otherwise a correct commit history can still produce an
 invalid squashed commit.
+
+GitHub names a pull request after its branch by default (`feat/my-branch` becomes `Feat/my branch`), which is not
+a valid title: rename it before merging.
 
 ## Blocking a merge
 

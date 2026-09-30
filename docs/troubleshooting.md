@@ -88,3 +88,9 @@ has write access in the package settings (Package settings → Manage Actions ac
 
 Their default title is `Bump x from a to b`. Set `commit-message.prefix: ci` in `dependabot.yml`, see
 [Dependency updates](dependency-updates.md).
+
+## `Lint pull request title` fails on a new pull request
+
+GitHub proposes the branch name as title (`Feat/my branch`). Rename the pull request to a Conventional Commit
+(`feat: add x`). The check runs again on rename only if `edited` is among the `pull_request` types of the
+calling workflow.
