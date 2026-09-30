@@ -1,0 +1,119 @@
+name: Python dead code
+
+# Reusable workflow: finds unused code with vulture.
+# Runs at the repository root by default; set WORKING_DIRECTORY for a
+# sub-project (monorepo). Vulture is static, so it is run through uvx and needs
+# no dependencies installed.
+#
+# Options:
+#   - the project has a [tool.vulture] table in pyproject.toml: it is used as
+#     is, without the defaults below;
+#   - otherwise the defaults apply (MIN_CONFIDENCE, EXCLUDE);
+#   - MIN_CONFIDENCE / EXCLUDE / IGNORE_NAMES / IGNORE_DECORATORS / WHITELIST /
+#     PATHS, when set, always win over the project configuration.
+
+on:
+  workflow_call:
+    inputs:
+      WORKING_DIRECTORY:
+        description: Directory to analyse (relative to the repository root)
+        type: string
+        required: false
+        default: .
+      PATHS:
+        description: Space-separated paths to analyse, relative to WORKING_DIRECTORY
+        type: string
+        required: false
+        default: .
+      PYTHON_VERSION:
+        description: Python version used to run vulture
+        type: string
+        required: false
+        default: "3.12"
+      VULTURE_VERSION:
+        description: Vulture version to run (for example 2.14). Empty uses the latest release.
+        type: string
+        required: false
+        default: ""
+      MIN_CONFIDENCE:
+        description: >-
+          Minimum confidence (0-100) to report. Empty - the project's
+          configuration, or 80 when it has none.
+        type: string
+        required: false
+        default: ""
+      EXCLUDE:
+        description: >-
+          Comma-separated path patterns to skip. Empty - the project's
+          configuration, or virtualenv and node_modules directories when it has none.
+        type: string
+        required: false
+        default: ""
+      IGNORE_NAMES:
+        description: Comma-separated names to ignore, wildcards allowed (for example visit_*,Meta)
+        type: string
+        required: false
+        default: ""
+      IGNORE_DECORATORS:
+        description: Comma-separated decorators whose functions are considered used (for example @app.route,@pytest.fixture)
+        type: string
+        required: false
+        default: ""
+      WHITELIST:
+        description: Whitelist file(s) of used names, space separated, relative to WORKING_DIRECTORY
+        type: string
+        required: false
+        default: ""
+      RUNS_ON:
+        description: Runner labels as JSON array
+        type: string
+        required: false
+        default: '["ubuntu-24.04"]'
+
+jobs:
+  vulture:
+    name: Vulture
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+    env:
+      DEFAULT_MIN_CONFIDENCE: "80"
+      DEFAULT_EXCLUDE: "*/.venv/*,*/venv/*,*/node_modules/*,*/site-packages/*"
+      PATHS: ${{ inputs.PATHS }}
+      MIN_CONFIDENCE: ${{ inputs.MIN_CONFIDENCE }}
+      EXCLUDE: ${{ inputs.EXCLUDE }}
+      IGNORE_NAMES: ${{ inputs.IGNORE_NAMES }}
+      IGNORE_DECORATORS: ${{ inputs.IGNORE_DECORATORS }}
+      WHITELIST: ${{ inputs.WHITELIST }}
+      VULTURE: vulture${{ inputs.VULTURE_VERSION != '' && format('=={0}', inputs.VULTURE_VERSION) || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7.6.0
+        with:
+          python-version: ${{ inputs.PYTHON_VERSION }}
+
+      - name: Vulture
+        run: |
+          set -euo pipefail
+          if [ -f pyproject.toml ] && grep -q '^\[tool\.vulture' pyproject.toml; then
+            echo "Using the project's vulture configuration"
+          else
+            echo "No vulture configuration found, applying defaults"
+            MIN_CONFIDENCE="${MIN_CONFIDENCE:-$DEFAULT_MIN_CONFIDENCE}"
+            EXCLUDE="${EXCLUDE:-$DEFAULT_EXCLUDE}"
+          fi
+
+          args=()
+          [ -z "$MIN_CONFIDENCE" ] || args+=(--min-confidence "$MIN_CONFIDENCE")
+          [ -z "$EXCLUDE" ] || args+=(--exclude "$EXCLUDE")
+          [ -z "$IGNORE_NAMES" ] || args+=(--ignore-names "$IGNORE_NAMES")
+          [ -z "$IGNORE_DECORATORS" ] || args+=(--ignore-decorators "$IGNORE_DECORATORS")
+
+          # Word splitting is wanted here: both are space-separated lists.
+          # shellcheck disable=SC2086
+          uvx "$VULTURE" "${args[@]}" $PATHS $WHITELIST

@@ -11,8 +11,7 @@ Reusable GitHub Actions workflows, independent from any organisation's shared ca
 | [python-lint.yml](.github/workflows/python-lint.yml) | `ruff check` + `ruff format --check` |
 | [python-typecheck.yml](.github/workflows/python-typecheck.yml) | ty (default), mypy or pyright on a uv project |
 | [lint-commits.yml](.github/workflows/lint-commits.yml) | commitlint: commits follow Conventional Commits |
-
-Planned: vulture.
+| [python-deadcode.yml](.github/workflows/python-deadcode.yml) | vulture: unused code |
 
 ## Documentation
 
@@ -39,7 +38,7 @@ Runs commitlint (pinned) on the commits of a pull request, or of a push. Add it 
 scope requirement and header length are inputs; `CONFIG_FILE` swaps in your own commitlint config.
 To block merging on failure, mark the job as a required status check in the branch protection.
 
-### python-lint / python-typecheck
+### python-lint / python-typecheck / python-deadcode
 
 Both run at the repository root by default; pass `WORKING_DIRECTORY` to target a sub-project.
 See [examples/python/caller.yml](examples/python/caller.yml) for all inputs.
