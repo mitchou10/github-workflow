@@ -12,6 +12,10 @@ name: Scan secrets
 #   - FULL_HISTORY, a new branch or a force-push: the whole history of HEAD;
 #   - LOG_OPTS, when set, replaces all of the above.
 #
+# Permissions: the job declares none, so it gets those of the calling job.
+# Grant `contents: read`, plus `security-events: write` when SECURITY_TAB is on.
+# (Declaring security-events here would force every caller to grant it.)
+#
 # Rules: gitleaks' default rules. A `.gitleaks.toml` at the repository root is
 # picked up automatically; CONFIG_FILE points to another one.
 
@@ -38,6 +42,19 @@ on:
         type: string
         required: false
         default: ""
+      SECURITY_TAB:
+        description: >-
+          Upload the findings to the GitHub Security tab (code scanning). The
+          calling job must grant `security-events: write`, and private
+          repositories need GitHub Advanced Security.
+        type: boolean
+        required: false
+        default: false
+      CATEGORY:
+        description: Code scanning category of the upload
+        type: string
+        required: false
+        default: gitleaks
       FAIL_ON_LEAKS:
         description: Fail the workflow when a leak is found
         type: boolean
@@ -57,8 +74,6 @@ jobs:
   gitleaks:
     name: Gitleaks
     runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
-    permissions:
-      contents: read
     outputs:
       leaks: ${{ steps.scan.outputs.leaks }}
     steps:
@@ -96,6 +111,7 @@ jobs:
           CONFIG_FILE: ${{ inputs.CONFIG_FILE }}
           FULL_HISTORY: ${{ inputs.FULL_HISTORY }}
           LOG_OPTS: ${{ inputs.LOG_OPTS }}
+          SECURITY_TAB: ${{ inputs.SECURITY_TAB }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
@@ -120,6 +136,7 @@ jobs:
 
           args=()
           [ -z "$CONFIG_FILE" ] || args+=(--config "$CONFIG_FILE")
+          [ "$SECURITY_TAB" != "true" ] || args+=(--report-format sarif --report-path gitleaks-results.sarif)
 
           echo "Scanning: $range"
           # Exit code 1 means leaks were found; anything else above 0 is a scan error.
@@ -138,6 +155,23 @@ jobs:
             echo "::error::Gitleaks did not complete (exit code $code)."
             exit "$code"
           fi
+
+      - name: Upload findings to the Security tab
+        id: upload
+        if: ${{ !cancelled() && inputs.SECURITY_TAB && steps.scan.outcome != 'skipped' }}
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd  # v4.38.1
+        with:
+          sarif_file: gitleaks-results.sarif
+          category: ${{ inputs.CATEGORY }}
+        # A missing permission or a repository without code scanning must not
+        # hide the scan result: it is reported below instead.
+        continue-on-error: true
+
+      - name: Warn when the upload failed
+        if: ${{ steps.upload.outcome == 'failure' }}
+        run: |
+          echo "::warning::The findings could not be uploaded to the Security tab. The calling job needs 'security-events: write', and private repositories need GitHub Advanced Security."
+          echo ":warning: Findings not uploaded to the Security tab." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail on leaks
         if: ${{ inputs.FAIL_ON_LEAKS && steps.scan.outputs.leaks == 'true' }}

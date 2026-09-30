@@ -47,3 +47,18 @@ the conflicts and force-push `dev` with `--force-with-lease`.
 
 The project has no ruff config in `WORKING_DIRECTORY`, so the defaults (`E,F,I,UP,B`, line length 120) apply.
 Add a `[tool.ruff]` table, or set `RULES`, `IGNORE` and `LINE_LENGTH`.
+
+## Workflow fails to start: `requesting 'security-events: write', but is only allowed 'security-events: none'`
+
+A workflow called with `SECURITY_TAB` needs `security-events: write` on the **calling job**:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+```
+
+## `Resource not accessible by integration` when uploading to the Security tab
+
+Pull requests from forks get a read-only token and cannot upload. Private repositories also need GitHub
+Advanced Security for code scanning. The scan itself still runs and `FAIL_ON_LEAKS` / `FAIL_ON_FINDINGS` still apply.

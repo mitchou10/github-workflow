@@ -8,7 +8,20 @@ gitleaks:
   uses: Mitchou10/github-workflow/.github/workflows/scan-gitleaks.yml@v0
   permissions:
     contents: read
+    security-events: write   # only with SECURITY_TAB: true
+  with:
+    SECURITY_TAB: true       # optional
 ```
+
+## Permissions
+
+The workflow declares no permissions of its own: it gets those of the calling job. Declaring
+`security-events: write` in the workflow would force every caller to grant it, even those that never upload.
+
+| Use | The calling job needs |
+| --- | --- |
+| Default | `contents: read` |
+| `SECURITY_TAB: true` | `contents: read` and `security-events: write` |
 
 The workflow installs the gitleaks CLI (MIT), pinned and checked against the release checksums. It does not use
 `gitleaks-action`, which needs a paid licence on organisation repositories.
@@ -21,6 +34,8 @@ The workflow installs the gitleaks CLI (MIT), pinned and checked against the rel
 | `CONFIG_FILE` | empty | Config file, relative to the repository root |
 | `FULL_HISTORY` | `false` | Scan the whole history of the checked-out ref |
 | `LOG_OPTS` | empty | Revision range for `git log`, for example `--all`. Replaces the automatic range |
+| `SECURITY_TAB` | `false` | Upload the findings to the GitHub Security tab |
+| `CATEGORY` | `gitleaks` | Code scanning category of the upload |
 | `FAIL_ON_LEAKS` | `true` | Fail the workflow when a leak is found |
 | `RUNS_ON` | `["ubuntu-24.04"]` | Runner labels, as a JSON array |
 
@@ -73,6 +88,8 @@ useDefault = true
 ## Notes
 
 - Findings are printed **redacted** in the job log, and summarised in the job summary.
-- The GitHub Security tab (SARIF upload) is not included: it needs `security-events: write`, which every caller
-  would have to grant, and code scanning on private repositories. Add it in your own workflow if you need it.
+- **Security tab**: with `SECURITY_TAB`, findings are uploaded as SARIF (redacted) to Security → Code scanning.
+  Private repositories need GitHub Advanced Security. If the upload fails (missing permission, no code scanning),
+  the job warns and still applies `FAIL_ON_LEAKS`: the scan result is never hidden by an upload problem.
+  Pull requests from forks cannot upload, because their token is read-only.
 - The job needs the full history (`fetch-depth: 0`); on a very large repository the checkout is the slow part.
