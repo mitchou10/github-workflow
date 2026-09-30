@@ -14,6 +14,7 @@ Reusable GitHub Actions workflows, independent from any organisation's shared ca
 | [scan-trivy.yml](.github/workflows/scan-trivy.yml) | Trivy: dependencies, misconfigurations, container images |
 | [lint-helm.yml](.github/workflows/lint-helm.yml) | chart-testing + helm-docs: Helm chart lint |
 | [build-docker.yml](.github/workflows/build-docker.yml) | buildx: build and push an image to ghcr.io or another registry |
+| [path-filter.yml](.github/workflows/path-filter.yml) | Which folders changed, to skip the jobs that do not apply |
 | [status-gate.yml](.github/workflows/status-gate.yml) | One required check that aggregates the other jobs |
 | [lint-commits.yml](.github/workflows/lint-commits.yml) | commitlint: commits follow Conventional Commits |
 | [python-deadcode.yml](.github/workflows/python-deadcode.yml) | vulture: unused code |

@@ -37,6 +37,7 @@ must be left out. The gate is one stable name, and it decides what counts.
 - A job with the result `success` passes. `failure` and `cancelled` fail the gate.
 - `skipped` passes unless `ALLOW_SKIPPED: false`. Keep it `true` when jobs are conditional, as in a pipeline
   with path filters.
+- Jobs skipped by a [path filter](path-filter.md) are `skipped`: this is why they pass by default.
 - An empty `NEEDS` fails: a gate that checks nothing would always be green.
 
 ## Two details that matter

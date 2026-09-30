@@ -94,3 +94,13 @@ Their default title is `Bump x from a to b`. Set `commit-message.prefix: ci` in 
 GitHub proposes the branch name as title (`Feat/my branch`). Rename the pull request to a Conventional Commit
 (`feat: add x`). The check runs again on rename only if `edited` is among the `pull_request` types of the
 calling workflow.
+
+## `Resource not accessible by integration` in the path filter
+
+The calling job of `path-filter` lacks `pull-requests: read`. Grant `contents: read` and `pull-requests: read`.
+
+## A job is skipped although its folder changed
+
+- The filter name in `contains(fromJSON(...), 'name')` does not match the name in `FILTERS` (case matters).
+- The pattern is not quoted, or does not match from the repository root (`backend/**`, not `/backend/**`).
+- The pull request is a draft and `SKIP_DRAFT` is on (the default).
