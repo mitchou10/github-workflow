@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/mitchou10/github-workflow/compare/v0.2.0...v0.3.0) (2026-09-30)
+
+
+### Features
+
+* add docker build, status gate and dependency update configuration ([d8aa18b](https://github.com/mitchou10/github-workflow/commit/d8aa18bcf1aae2e3e91361b6a2d2946ed43b1876))
+* add path filter workflow ([a090f33](https://github.com/mitchou10/github-workflow/commit/a090f33ed9bdcba513d8ac41e06db6e9ad20b5ad))
+* add reusable conventional commit lint workflow ([308b4a1](https://github.com/mitchou10/github-workflow/commit/308b4a1e25bdda14bc96cb01f8ecdc823e7d7fc9))
+* add reusable gitleaks secret scan workflow ([fbf4e03](https://github.com/mitchou10/github-workflow/commit/fbf4e03a3947fba9ebc8b8e32ae4f8fcd258056c))
+* add reusable helm chart lint workflow ([ee40cd7](https://github.com/mitchou10/github-workflow/commit/ee40cd70ba8895706bc166f4992261833189c971))
+* add reusable python dead code workflow (vulture) ([4caf2e6](https://github.com/mitchou10/github-workflow/commit/4caf2e6b29eb5b648046b1cd7aef65e6474a2c7f))
+* add trivy scan workflow and security tab upload for gitleaks ([fcf636b](https://github.com/mitchou10/github-workflow/commit/fcf636b8f8ff87f954996b79516ad7b1ea113893))
+
 ## [0.1.0-rc.5](https://github.com/mitchou10/github-workflow/compare/v0.1.0-rc.4...v0.1.0-rc.5) (2026-09-30)
 
 
