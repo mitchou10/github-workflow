@@ -8,6 +8,7 @@
 | [sync-prerelease-branch](sync-prerelease-branch.md) | Keeping `dev` on top of `main` after a release |
 | [python-lint](python-lint.md) | ruff, default rules and overrides |
 | [python-typecheck](python-typecheck.md) | ty, mypy or pyright |
+| [python-deadcode](python-deadcode.md) | vulture, confidence levels, false positives |
 | [lint-commits](lint-commits.md) | Conventional Commits check |
 | [Troubleshooting](troubleshooting.md) | Errors met while setting things up |
 
