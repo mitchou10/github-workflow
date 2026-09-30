@@ -5,6 +5,8 @@ name: CI
 on:
   pull_request:
     branches: [main, dev]
+    # `edited`: a renamed pull request title is linted again.
+    types: [opened, synchronize, reopened, edited]
 
 jobs:
   lint-commits:
