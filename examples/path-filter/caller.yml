@@ -1,0 +1,49 @@
+# Copy to .github/workflows/ci.yml. Monorepo: each job runs only when its folder changed.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+jobs:
+  paths:
+    uses: Mitchou10/github-workflow/.github/workflows/path-filter.yml@v0
+    permissions:
+      contents: read
+      pull-requests: read
+    with:
+      FILTERS: |
+        backend:
+          - 'backend/**'
+        frontend:
+          - 'frontend/**'
+        helm:
+          - 'helm/**'
+        ci:
+          - '.github/workflows/**'
+      ALWAYS: ci          # a change to the workflows re-runs everything
+
+  lint-backend:
+    needs: paths
+    if: contains(fromJSON(needs.paths.outputs.changed), 'backend')
+    uses: Mitchou10/github-workflow/.github/workflows/python-lint.yml@v0
+    permissions:
+      contents: read
+    with:
+      WORKING_DIRECTORY: backend
+
+  lint-helm:
+    needs: paths
+    if: contains(fromJSON(needs.paths.outputs.changed), 'helm')
+    uses: Mitchou10/github-workflow/.github/workflows/lint-helm.yml@v0
+    permissions:
+      contents: read
+
+  # A skipped job counts as passed, so the gate can be the only required check.
+  gate:
+    if: ${{ always() }}
+    needs: [paths, lint-backend, lint-helm]
+    uses: Mitchou10/github-workflow/.github/workflows/status-gate.yml@v0
+    with:
+      NEEDS: ${{ toJSON(needs) }}

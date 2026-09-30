@@ -1,0 +1,129 @@
+name: Path filter
+
+# Reusable workflow: tells which parts of the repository changed, so the next
+# jobs can run only for those (monorepo) or be skipped altogether.
+#
+#   paths:
+#     uses: Mitchou10/github-workflow/.github/workflows/path-filter.yml@v0
+#     with:
+#       FILTERS: |
+#         backend:
+#           - 'backend/**'
+#         frontend:
+#           - 'frontend/**'
+#
+#   test-backend:
+#     needs: paths
+#     if: contains(fromJSON(needs.paths.outputs.changed), 'backend')
+#     uses: ./.github/workflows/test-backend.yml
+#
+# Permissions: the job declares none, so it gets those of the calling job.
+# Grant `contents: read` and `pull-requests: read` (the pull request files are
+# read through the API).
+
+on:
+  workflow_call:
+    inputs:
+      FILTERS:
+        description: >-
+          YAML mapping of filter name to a list of glob patterns, in the
+          dorny/paths-filter syntax. Names should be simple words: they end up in
+          the `changed` output.
+        type: string
+        required: true
+      ALWAYS:
+        description: >-
+          Comma-separated filter names that make everything count as changed
+          (for example `ci` for the workflow files, or `deps` for a lockfile).
+        type: string
+        required: false
+        default: ""
+      ALL_ON_EVENTS:
+        description: >-
+          Comma-separated events for which everything counts as changed, since
+          there is nothing to compare with. Tag pushes always count as changed.
+        type: string
+        required: false
+        default: workflow_dispatch,schedule,release
+      SKIP_DRAFT:
+        description: Report nothing changed on draft pull requests, so the pipeline is skipped until they are ready
+        type: boolean
+        required: false
+        default: true
+      RUNS_ON:
+        description: Runner labels as JSON array
+        type: string
+        required: false
+        default: '["ubuntu-24.04"]'
+    outputs:
+      changed:
+        description: 'JSON array of the filter names that changed, for example ["backend","helm"]'
+        value: ${{ jobs.paths.outputs.changed }}
+      any:
+        description: '"true" when at least one filter changed'
+        value: ${{ jobs.paths.outputs.any }}
+
+jobs:
+  paths:
+    name: Detect changed paths
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    outputs:
+      changed: ${{ steps.result.outputs.changed }}
+      any: ${{ steps.result.outputs.any }}
+    env:
+      IS_DIFFABLE: ${{ (github.event_name == 'pull_request' || github.event_name == 'pull_request_target' || github.event_name == 'push') && github.ref_type != 'tag' }}
+    steps:
+      # Needed on push events, where the changes are read from git.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: ${{ env.IS_DIFFABLE == 'true' }}
+
+      - name: Check updated files
+        id: filter
+        if: ${{ env.IS_DIFFABLE == 'true' }}
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        with:
+          filters: ${{ inputs.FILTERS }}
+
+      - name: Compute the result
+        id: result
+        env:
+          FILTERS: ${{ inputs.FILTERS }}
+          ALWAYS: ${{ inputs.ALWAYS }}
+          ALL_ON_EVENTS: ${{ inputs.ALL_ON_EVENTS }}
+          SKIP_DRAFT: ${{ inputs.SKIP_DRAFT }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
+          EVENT_NAME: ${{ github.event_name }}
+          DETECTED: ${{ steps.filter.outputs.changes }}
+        run: |
+          set -euo pipefail
+
+          if ! all=$(yq -o=json -I=0 'keys' <<<"$FILTERS" 2>/dev/null) || [ "$(yq 'type' <<<"$FILTERS")" != "!!map" ]; then
+            echo "::error::FILTERS must be a YAML mapping of filter name to a list of patterns."
+            exit 1
+          fi
+
+          if [ "$SKIP_DRAFT" = "true" ] && [ "$IS_DRAFT" = "true" ]; then
+            echo "Draft pull request: nothing to run."
+            changed='[]'
+          elif [ "$IS_DIFFABLE" != "true" ] || [[ ",$ALL_ON_EVENTS," == *",$EVENT_NAME,"* ]]; then
+            echo "No base to compare with ($EVENT_NAME): everything counts as changed."
+            changed="$all"
+          else
+            changed="${DETECTED:-[]}"
+            # A change to one of the ALWAYS filters means everything is affected.
+            if [ -n "$ALWAYS" ] && jq -e --arg always "$ALWAYS" \
+              '($always | split(",") | map(gsub("^\\s+|\\s+$"; ""))) as $a | any(.[]; . as $n | $a | index($n) != null)' \
+              <<<"$changed" >/dev/null; then
+              echo "A filter listed in ALWAYS changed: everything counts as changed."
+              changed="$all"
+            fi
+          fi
+
+          changed=$(jq -c '.' <<<"$changed")
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "any=$(jq 'length > 0' <<<"$changed")" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Changed paths"
+            if [ "$changed" = "[]" ]; then echo "Nothing."; else jq -r '.[] | "- " + .' <<<"$changed"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
