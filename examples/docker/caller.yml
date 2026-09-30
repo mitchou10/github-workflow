@@ -1,0 +1,54 @@
+# Add to your release pipeline, after the release job (see examples/release-please/caller.yml).
+name: Release
+
+on:
+  push:
+    branches: [main, dev]
+
+jobs:
+  release:
+    uses: Mitchou10/github-workflow/.github/workflows/release-please.yml@v0
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    with:
+      ENABLE_PRERELEASE: true
+
+  build:
+    needs: release
+    if: needs.release.outputs.release-created == 'true'
+    uses: Mitchou10/github-workflow/.github/workflows/build-docker.yml@v0
+    permissions:
+      contents: read
+      packages: write
+    with:
+      IMAGE_TAG: ${{ needs.release.outputs.version }}
+      LATEST_TAG: ${{ github.ref_name == 'main' }}
+      TAG_MAJOR_AND_MINOR: ${{ github.ref_name == 'main' }}
+      # PLATFORMS: linux/amd64,linux/arm64
+      # CONTEXT: backend
+      # DOCKERFILE: backend/Dockerfile
+      # TARGET: runtime
+      # BUILD_ARGS: |
+      #   APP_VERSION=${{ needs.release.outputs.version }}
+
+  # Several images: a matrix, each one with its own name.
+  # build:
+  #   strategy:
+  #     matrix:
+  #       service: [api, worker]
+  #   with:
+  #     IMAGE_NAME: ghcr.io/owner/app-${{ matrix.service }}
+  #     CONTEXT: ${{ matrix.service }}
+
+  scan:
+    needs: [release, build]
+    if: needs.release.outputs.release-created == 'true'
+    uses: Mitchou10/github-workflow/.github/workflows/scan-trivy.yml@v0
+    permissions:
+      contents: read
+      packages: read
+    with:
+      SCAN_TYPE: image
+      TARGET: ${{ needs.build.outputs.image }}:${{ needs.release.outputs.version }}

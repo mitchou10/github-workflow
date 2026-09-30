@@ -26,6 +26,7 @@ on:
         description: Gitleaks version
         type: string
         required: false
+        # renovate: datasource=github-releases depName=gitleaks/gitleaks
         default: 8.30.1
       CONFIG_FILE:
         description: Gitleaks config file, relative to the repository root. Empty uses .gitleaks.toml if present, else the default rules.

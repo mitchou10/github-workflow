@@ -1,0 +1,16 @@
+# Keeps the pinned actions of this repository up to date. Use either Dependabot
+# or Renovate on a repository, never both: they would open duplicate pull requests.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+    # Conventional Commits: without a prefix Dependabot titles are "Bump x from
+    # a to b", which the commit lint rejects. `ci` is not a releasable type.
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]

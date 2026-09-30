@@ -1,0 +1,75 @@
+name: Status gate
+
+# Reusable workflow: one job that goes green only when every job it depends on
+# went green. Mark it as the single required status check of the branch, instead
+# of listing each job (which drifts, and a job left out of the list is a job
+# whose failure no longer blocks the merge).
+#
+# The caller lists the jobs in `needs` and passes them on:
+#
+#   gate:
+#     if: ${{ always() }}
+#     needs: [lint, test, build]
+#     uses: Mitchou10/github-workflow/.github/workflows/status-gate.yml@v0
+#     with:
+#       NEEDS: ${{ toJSON(needs) }}
+#
+# `if: always()` is required: without it the gate is skipped when a job fails,
+# and a skipped required check counts as passed.
+
+on:
+  workflow_call:
+    inputs:
+      NEEDS:
+        description: The caller's `needs` context, as JSON (toJSON(needs))
+        type: string
+        required: true
+      ALLOW_SKIPPED:
+        description: >-
+          Accept a skipped job as success. Needed when jobs are conditional
+          (path filters, draft pull requests).
+        type: boolean
+        required: false
+        default: true
+      RUNS_ON:
+        description: Runner labels as JSON array
+        type: string
+        required: false
+        default: '["ubuntu-24.04"]'
+
+jobs:
+  gate:
+    name: Check jobs status
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    permissions: {}
+    steps:
+      - name: Check the jobs
+        env:
+          NEEDS: ${{ inputs.NEEDS }}
+          ALLOW_SKIPPED: ${{ inputs.ALLOW_SKIPPED }}
+        run: |
+          set -euo pipefail
+
+          if ! jq -e 'type == "object"' <<<"$NEEDS" >/dev/null 2>&1; then
+            echo "::error::NEEDS must be the JSON of the needs context: NEEDS: \${{ toJSON(needs) }}"
+            exit 1
+          fi
+
+          # An empty list would make the gate pass by doing nothing.
+          if [ "$(jq 'length' <<<"$NEEDS")" -eq 0 ]; then
+            echo "::error::NEEDS is empty: the gate checks nothing. List the jobs in 'needs' of the calling job."
+            exit 1
+          fi
+
+          jq -r 'to_entries[] | "\(.key)\t\(.value.result)"' <<<"$NEEDS" | column -t -s $'\t'
+
+          bad=$(jq -r --argjson skipped "$ALLOW_SKIPPED" '
+            to_entries[]
+            | select(.value.result != "success" and (.value.result != "skipped" or ($skipped | not)))
+            | "\(.key) (\(.value.result))"' <<<"$NEEDS")
+
+          if [ -n "$bad" ]; then
+            echo "::error::Jobs not successful: $(echo "$bad" | paste -sd, -)"
+            exit 1
+          fi
+          echo "All jobs passed."
