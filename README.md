@@ -9,7 +9,7 @@ Reusable GitHub Actions workflows, independent from any organisation's shared ca
 | [release-please.yml](.github/workflows/release-please.yml) | Release PR, tag and GitHub Release (single branch or `dev` → `main` prerelease flow) |
 | [sync-prerelease-branch.yml](.github/workflows/sync-prerelease-branch.yml) | Rebases `dev` on `main` after a release |
 | [python-lint.yml](.github/workflows/python-lint.yml) | `ruff check` + `ruff format --check` |
-| [python-typecheck.yml](.github/workflows/python-typecheck.yml) | mypy or pyright on a uv project |
+| [python-typecheck.yml](.github/workflows/python-typecheck.yml) | ty (default), mypy or pyright on a uv project |
 
 Planned: vulture.
 
