@@ -73,3 +73,18 @@ points at its parent. See [lint-helm](lint-helm.md#where-charts-are-found).
 
 `ONLY_CHANGED` compares with a remote branch that is not there. Set `TARGET_BRANCH` to an existing branch of the
 repository.
+
+## The merge is allowed although a job failed
+
+The [status gate](status-gate.md) is missing `if: ${{ always() }}`, or the job is not in its `needs`. A skipped
+gate counts as passed for a required check.
+
+## `denied: installation not allowed to Create Organization Package` / `permission_denied: write_package`
+
+The calling job of `build-docker` lacks `packages: write`. On an existing package, also check that the repository
+has write access in the package settings (Package settings → Manage Actions access).
+
+## Dependabot pull requests are rejected by lint-commits
+
+Their default title is `Bump x from a to b`. Set `commit-message.prefix: ci` in `dependabot.yml`, see
+[Dependency updates](dependency-updates.md).

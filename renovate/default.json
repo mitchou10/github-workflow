@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared Renovate preset: pinned GitHub Actions, Conventional Commits, tool versions annotated in workflows.",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(ci)"
+  ],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "One pull request for all the GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Tool versions annotated in workflows: '# renovate: datasource=... depName=...' followed by 'default: <version>'",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+default: \"?(?<currentValue>[^\\s\"]+)\"?"
+      ]
+    }
+  ]
+}

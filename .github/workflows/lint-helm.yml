@@ -75,6 +75,7 @@ on:
         description: helm-docs version
         type: string
         required: false
+        # renovate: datasource=github-releases depName=norwoodj/helm-docs
         default: v1.14.2
       RUNS_ON:
         description: Runner labels as JSON array
