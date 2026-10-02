@@ -1,0 +1,230 @@
+name: Python coverage
+
+# Reusable workflow: runs the unit tests with pytest, measures the coverage and
+# fails below a threshold. The report goes to the job summary and the XML/HTML
+# reports are kept as an artifact.
+#
+# Runs at the repository root by default; set WORKING_DIRECTORY for a
+# sub-project (monorepo). The project dependencies are installed with uv;
+# pytest, pytest-cov and coverage are added on the fly, so they need not be
+# dependencies of the project.
+#
+# Threshold:
+#   - MIN_COVERAGE, when set, wins;
+#   - otherwise the project's own coverage configuration ([tool.coverage.*] in
+#     pyproject.toml, .coveragerc) decides, including its `fail_under`;
+#   - otherwise the default of 80 % applies.
+#
+# Tests that need a database, a cache...: COMPOSE_FILE starts them, ENV points
+# the tests at them, SETUP_COMMAND prepares them (migrations).
+
+on:
+  workflow_call:
+    inputs:
+      WORKING_DIRECTORY:
+        description: Project directory (relative to the repository root)
+        type: string
+        required: false
+        default: .
+      PYTHON_VERSION:
+        description: Python version
+        type: string
+        required: false
+        default: "3.12"
+      SYNC_ARGS:
+        description: Arguments for `uv sync` (for example `--group dev`, `--extra foo`)
+        type: string
+        required: false
+        default: --all-groups
+      TEST_PATH:
+        description: Path of the tests, relative to WORKING_DIRECTORY. Empty lets pytest discover them.
+        type: string
+        required: false
+        default: ""
+      PYTEST_ARGS:
+        description: Extra arguments for pytest (for example `-x -m "not slow"`)
+        type: string
+        required: false
+        default: ""
+      COVERAGE_SOURCE:
+        description: >-
+          Comma-separated packages or directories to measure (for example app).
+          Empty measures the project code, not the installed dependencies.
+        type: string
+        required: false
+        default: ""
+      MIN_COVERAGE:
+        description: >-
+          Minimum total coverage in percent, 0 to disable. Empty: the project's
+          coverage configuration, or 80 when it has none.
+        type: string
+        required: false
+        default: ""
+      BRANCH_COVERAGE:
+        description: Measure branch coverage as well as line coverage
+        type: boolean
+        required: false
+        default: false
+      COMPOSE_FILE:
+        description: Docker Compose file whose services the tests need, started before them (relative to WORKING_DIRECTORY)
+        type: string
+        required: false
+        default: ""
+      COMPOSE_SERVICES:
+        description: Space-separated services to start. Empty starts all of them.
+        type: string
+        required: false
+        default: ""
+      ENV:
+        description: Environment variables for the tests, one KEY=value per line. Not for secrets.
+        type: string
+        required: false
+        default: ""
+      SETUP_COMMAND:
+        description: Command run once before the tests, in WORKING_DIRECTORY (for example `uv run alembic upgrade head`)
+        type: string
+        required: false
+        default: ""
+      UPLOAD_REPORTS:
+        description: Keep coverage.xml and the HTML report as a workflow artifact
+        type: boolean
+        required: false
+        default: true
+      RUNS_ON:
+        description: Runner labels as JSON array
+        type: string
+        required: false
+        default: '["ubuntu-24.04"]'
+    outputs:
+      coverage:
+        description: Total coverage in percent, for example 87
+        value: ${{ jobs.coverage.outputs.coverage }}
+
+jobs:
+  coverage:
+    name: Tests and coverage
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+    outputs:
+      coverage: ${{ steps.total.outputs.coverage }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7.6.0
+        with:
+          python-version: ${{ inputs.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: ${{ inputs.WORKING_DIRECTORY }}/uv.lock
+
+      - name: Install dependencies
+        env:
+          SYNC_ARGS: ${{ inputs.SYNC_ARGS }}
+        # Unquoted on purpose: SYNC_ARGS holds several arguments.
+        run: uv sync $SYNC_ARGS
+
+      - name: Set the test environment
+        if: ${{ inputs.ENV != '' }}
+        env:
+          TEST_ENV: ${{ inputs.ENV }}
+        run: |
+          # Through the file, not the shell: a value cannot run as a command.
+          printf '%s\n' "$TEST_ENV" >> "$GITHUB_ENV"
+
+      - name: Start the services
+        if: ${{ inputs.COMPOSE_FILE != '' }}
+        env:
+          COMPOSE_FILE_PATH: ${{ inputs.COMPOSE_FILE }}
+          COMPOSE_SERVICES: ${{ inputs.COMPOSE_SERVICES }}
+        # --wait blocks until the services are healthy (they need a healthcheck).
+        run: docker compose -f "$COMPOSE_FILE_PATH" up -d --wait $COMPOSE_SERVICES
+
+      - name: Prepare
+        if: ${{ inputs.SETUP_COMMAND != '' }}
+        env:
+          SETUP_COMMAND: ${{ inputs.SETUP_COMMAND }}
+        run: bash -euo pipefail -c "$SETUP_COMMAND"
+
+      - name: Run the tests
+        id: tests
+        env:
+          COVERAGE_SOURCE: ${{ inputs.COVERAGE_SOURCE }}
+          MIN_COVERAGE: ${{ inputs.MIN_COVERAGE }}
+          BRANCH_COVERAGE: ${{ inputs.BRANCH_COVERAGE }}
+          TEST_PATH: ${{ inputs.TEST_PATH }}
+          PYTEST_ARGS: ${{ inputs.PYTEST_ARGS }}
+          DEFAULT_MIN_COVERAGE: "80"
+        run: |
+          set -euo pipefail
+          args=()
+
+          if [ -n "$COVERAGE_SOURCE" ]; then
+            IFS=',' read -ra sources <<<"$COVERAGE_SOURCE"
+            for source in "${sources[@]}"; do args+=("--cov=${source// /}"); done
+          else
+            args+=(--cov)
+          fi
+          [ "$BRANCH_COVERAGE" != "true" ] || args+=(--cov-branch)
+
+          # A project that configures coverage keeps its own threshold.
+          if [ -f .coveragerc ] || { [ -f pyproject.toml ] && grep -q '^\[tool\.coverage' pyproject.toml; }; then
+            has_config=true
+          else
+            has_config=false
+          fi
+          if [ -n "$MIN_COVERAGE" ]; then
+            threshold="$MIN_COVERAGE"
+          elif [ "$has_config" = "false" ]; then
+            threshold="$DEFAULT_MIN_COVERAGE"
+          else
+            threshold=""
+            echo "Using the project's coverage configuration"
+          fi
+          [ -z "$threshold" ] || args+=("--cov-fail-under=$threshold")
+
+          args+=(--cov-report=term-missing --cov-report=xml:coverage.xml --cov-report=html:htmlcov)
+
+          # Word splitting is wanted for PYTEST_ARGS and TEST_PATH.
+          # shellcheck disable=SC2086
+          uv run --no-sync --with pytest --with pytest-cov pytest "${args[@]}" $PYTEST_ARGS $TEST_PATH
+
+      # Runs even when the tests or the threshold failed: that is when the report is read.
+      - name: Coverage report
+        id: total
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          [ -f .coverage ] || { echo "::warning::No coverage data was produced."; exit 0; }
+          # --fail-under=0: only pytest applies the threshold. Without it, a project
+          # `fail_under` makes this command fail and hides the report.
+          total=$(uv run --no-sync --with coverage coverage report --fail-under=0 --format=total)
+          echo "coverage=$total" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Coverage: ${total} %"
+            echo
+            uv run --no-sync --with coverage coverage report --fail-under=0 --format=markdown --skip-covered
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Artifact names must be unique in a run, and several projects of one
+      # repository can each call this workflow.
+      - name: Name the artifact
+        id: artifact
+        if: ${{ !cancelled() && inputs.UPLOAD_REPORTS }}
+        env:
+          NAME: ${{ inputs.WORKING_DIRECTORY }}-py${{ inputs.PYTHON_VERSION }}
+        run: echo "name=coverage-$(printf '%s' "$NAME" | tr -c 'A-Za-z0-9._-' '-')" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the reports
+        if: ${{ !cancelled() && inputs.UPLOAD_REPORTS }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: |
+            ${{ inputs.WORKING_DIRECTORY }}/coverage.xml
+            ${{ inputs.WORKING_DIRECTORY }}/htmlcov
+          if-no-files-found: ignore
+          retention-days: 7

@@ -17,6 +17,7 @@ Reusable GitHub Actions workflows, independent from any organisation's shared ca
 | [path-filter.yml](.github/workflows/path-filter.yml) | Which folders changed, to skip the jobs that do not apply |
 | [status-gate.yml](.github/workflows/status-gate.yml) | One required check that aggregates the other jobs |
 | [lint-commits.yml](.github/workflows/lint-commits.yml) | commitlint: commits follow Conventional Commits |
+| [python-coverage.yml](.github/workflows/python-coverage.yml) | pytest + coverage with a threshold, reports kept |
 | [python-deadcode.yml](.github/workflows/python-deadcode.yml) | vulture: unused code |
 
 Also provided: a shared [Renovate preset](renovate/default.json) and a Dependabot config
@@ -47,7 +48,7 @@ Runs commitlint (pinned) on the commits of a pull request, or of a push. Add it 
 scope requirement and header length are inputs; `CONFIG_FILE` swaps in your own commitlint config.
 To block merging on failure, mark the job as a required status check in the branch protection.
 
-### python-lint / python-typecheck / python-deadcode
+### python-lint / python-typecheck / python-deadcode / python-coverage
 
 Both run at the repository root by default; pass `WORKING_DIRECTORY` to target a sub-project.
 See [examples/python/caller.yml](examples/python/caller.yml) for all inputs.

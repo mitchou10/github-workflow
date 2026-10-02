@@ -42,3 +42,22 @@ jobs:
     #   IGNORE_NAMES: "visit_*,Meta"
     #   IGNORE_DECORATORS: "@app.route,@pytest.fixture"
     #   WHITELIST: whitelist.py
+
+  coverage:
+    uses: Mitchou10/github-workflow/.github/workflows/python-coverage.yml@v0
+    permissions:
+      contents: read
+    # with:
+    #   WORKING_DIRECTORY: backend       # default: repository root
+    #   COVERAGE_SOURCE: app             # default: the project code
+    #   MIN_COVERAGE: "85"               # default: 80 (or the project's fail_under)
+    #   BRANCH_COVERAGE: true
+    #   PYTEST_ARGS: -m "not slow"
+    #
+    # Tests that need a database: start it, point the tests at it, prepare it.
+    #   COMPOSE_FILE: docker-compose-test.yaml
+    #   COMPOSE_SERVICES: postgres redis
+    #   ENV: |
+    #     DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/app
+    #     REDIS_URL=redis://localhost:6379/0
+    #   SETUP_COMMAND: uv run alembic upgrade head
