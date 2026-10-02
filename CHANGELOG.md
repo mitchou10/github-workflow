@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.0-rc.6](https://github.com/mitchou10/github-workflow/compare/v0.1.0-rc.5...v0.1.0-rc.6) (2026-10-02)
+
+
+### Features
+
+* add docker build, status gate and dependency update configuration ([d8aa18b](https://github.com/mitchou10/github-workflow/commit/d8aa18bcf1aae2e3e91361b6a2d2946ed43b1876))
+* add path filter workflow ([a090f33](https://github.com/mitchou10/github-workflow/commit/a090f33ed9bdcba513d8ac41e06db6e9ad20b5ad))
+* add reusable conventional commit lint workflow ([308b4a1](https://github.com/mitchou10/github-workflow/commit/308b4a1e25bdda14bc96cb01f8ecdc823e7d7fc9))
+* add reusable gitleaks secret scan workflow ([fbf4e03](https://github.com/mitchou10/github-workflow/commit/fbf4e03a3947fba9ebc8b8e32ae4f8fcd258056c))
+* add reusable helm chart lint workflow ([ee40cd7](https://github.com/mitchou10/github-workflow/commit/ee40cd70ba8895706bc166f4992261833189c971))
+* add reusable python coverage workflow ([f921f40](https://github.com/mitchou10/github-workflow/commit/f921f404f9d2ab7dfcfe64e692b64c6c20a527d5))
+* add reusable python dead code workflow (vulture) ([4caf2e6](https://github.com/mitchou10/github-workflow/commit/4caf2e6b29eb5b648046b1cd7aef65e6474a2c7f))
+* add reusable python lint (ruff) and typecheck workflows ([19a51fd](https://github.com/mitchou10/github-workflow/commit/19a51fd68fba5e35060a1f177bd5a0dfd99e8314))
+* add reusable release-please and sync-prerelease-branch workflows ([8b23fe0](https://github.com/mitchou10/github-workflow/commit/8b23fe0c515de80eb3132535625cbc31c9c3468e))
+* add trivy scan workflow and security tab upload for gitleaks ([fcf636b](https://github.com/mitchou10/github-workflow/commit/fcf636b8f8ff87f954996b79516ad7b1ea113893))
+* default ruff rules with project config and input overrides ([5f8592b](https://github.com/mitchou10/github-workflow/commit/5f8592b2941d6c710b4590fad72973a530ddfda7))
+* use ty as the default type checker ([d3f005e](https://github.com/mitchou10/github-workflow/commit/d3f005e7634194e125c59203fe85a06ed060040c))
+
+
+### Bug Fixes
+
+* set initial-version so the first release is 0.1.0 (rc: 0.1.0-rc.1) ([876153c](https://github.com/mitchou10/github-workflow/commit/876153c3cb7e0fa218365b10977a407c3d83ae34))
+
 ## [0.3.0](https://github.com/mitchou10/github-workflow/compare/v0.2.0...v0.3.0) (2026-09-30)
 
 
