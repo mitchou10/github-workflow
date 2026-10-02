@@ -8,6 +8,7 @@
 | [sync-prerelease-branch](sync-prerelease-branch.md) | Keeping `dev` on top of `main` after a release |
 | [python-lint](python-lint.md) | ruff, default rules and overrides |
 | [python-typecheck](python-typecheck.md) | ty, mypy or pyright |
+| [python-coverage](python-coverage.md) | pytest and coverage, threshold, tests with a database |
 | [python-deadcode](python-deadcode.md) | vulture, confidence levels, false positives |
 | [scan-gitleaks](scan-gitleaks.md) | gitleaks, what is scanned, allowlists |
 | [scan-trivy](scan-trivy.md) | Trivy: fs, config and image scans |
