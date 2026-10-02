@@ -104,3 +104,19 @@ The calling job of `path-filter` lacks `pull-requests: read`. Grant `contents: r
 - The filter name in `contains(fromJSON(...), 'name')` does not match the name in `FILTERS` (case matters).
 - The pattern is not quoted, or does not match from the repository root (`backend/**`, not `/backend/**`).
 - The pull request is a draft and `SKIP_DRAFT` is on (the default).
+
+## `ModuleNotFoundError` when pytest collects the tests
+
+The workflow runs `pytest` like `uv run pytest`, which does not put the project directory on the import path. Add
+`pythonpath = ["."]` to `[tool.pytest.ini_options]` in `pyproject.toml`, or make the project an installable
+package.
+
+## `FAIL Required test coverage of 80% not reached`
+
+The default threshold is 80 %. Raise the coverage, lower the bar (`MIN_COVERAGE`), or set `fail_under` in the
+project's coverage configuration. See [python-coverage](python-coverage.md#which-threshold-applies).
+
+## The tests cannot reach the database
+
+`COMPOSE_FILE` services must publish their ports and have a healthcheck (`up --wait` relies on it), and `ENV` must
+point at `localhost`. A migration goes in `SETUP_COMMAND`.
