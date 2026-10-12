@@ -183,7 +183,10 @@ jobs:
           cp "$RELEASE_MANIFEST_FILE" "$PRERELEASE_MANIFEST_FILE"
           git add "$PRERELEASE_MANIFEST_FILE"
           git commit --amend --no-edit
-          git push --force-with-lease "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$PR_BRANCH"
+          # The push goes to a URL, not to `origin`: a bare --force-with-lease has no remote-tracking
+          # ref to compare with there and always fails with "stale info". Name the expected value.
+          git push --force-with-lease="$PR_BRANCH:$(git rev-parse "origin/$PR_BRANCH")" \
+            "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$PR_BRANCH"
 
       - name: Enable auto-merge on release PR
         if: ${{ inputs.AUTOMERGE && steps.release.outputs.prs_created == 'true' }}
