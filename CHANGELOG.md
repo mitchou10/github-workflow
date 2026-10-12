@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/mitchou10/github-workflow/compare/v0.3.0...v0.4.0) (2026-10-12)
+
+
+### Features
+
+* add reusable python coverage workflow ([6ffa00f](https://github.com/mitchou10/github-workflow/commit/6ffa00f43848bc714e5dcb5edea6dfbdb98e344e))
+
+
+### Bug Fixes
+
+* **release-please:** name the expected value of the force-with-lease push ([237f135](https://github.com/mitchou10/github-workflow/commit/237f135f8479bf99f3541bfde476c38fc4731063))
+
 ## [0.1.0-rc.6](https://github.com/mitchou10/github-workflow/compare/v0.1.0-rc.5...v0.1.0-rc.6) (2026-10-12)
 
 
