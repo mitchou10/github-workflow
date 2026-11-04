@@ -55,6 +55,8 @@ jobs:
         working-directory: ${{ inputs.WORKING_DIRECTORY }}
     steps:
       - name: Validate inputs
+        # Runs before the checkout, when WORKING_DIRECTORY does not exist yet: do not use the job default.
+        working-directory: .
         env:
           TYPE_CHECKER: ${{ inputs.TYPE_CHECKER }}
         run: |
