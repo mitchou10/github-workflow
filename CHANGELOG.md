@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/mitchou10/github-workflow/compare/v0.4.0...v0.4.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* validate the type checker input before the working directory exists ([bce1277](https://github.com/mitchou10/github-workflow/commit/bce127711b2ff08aa719bd0b9e6ca3a1c043a6f0))
+
 ## [0.4.1-rc](https://github.com/mitchou10/github-workflow/compare/v0.4.0...v0.4.1-rc) (2026-11-04)
 
 
