@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0-rc](https://github.com/mitchou10/github-workflow/compare/v0.4.1...v0.5.0-rc) (2026-11-14)
+
+
+### Features
+
+* reusable workflows to lint, render, release and sign a Helm chart ([920d830](https://github.com/mitchou10/github-workflow/commit/920d8303cd0ea94649535edca26bcbc593f7a3a8))
+
+
+### Bug Fixes
+
+* let the commit lint ignore Dependabot's messages ([432c260](https://github.com/mitchou10/github-workflow/commit/432c2607ae33ed3f3578e02f2bf4b84de0fb3ccb))
+
 ## [0.4.1](https://github.com/mitchou10/github-workflow/compare/v0.4.0...v0.4.1) (2026-11-04)
 
 
