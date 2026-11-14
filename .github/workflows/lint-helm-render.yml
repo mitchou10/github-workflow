@@ -1,0 +1,127 @@
+name: Lint Helm render
+
+# Reusable workflow: renders a chart with `helm template`, once with its default values and once per values file given,
+# and checks every manifest against the Kubernetes API schemas (kubeconform). `helm lint` only says the templates
+# render; this says what they render is a valid Kubernetes object.
+#
+# A chart that refuses its default values (it insists on a secret, say) gets that secret from a values file of
+# VALUES_FILES: list them all, the default values are rendered only when DEFAULT_VALUES is true.
+
+on:
+  workflow_call:
+    inputs:
+      CHART_PATH:
+        description: Path to the chart directory (the one holding Chart.yaml)
+        type: string
+        required: true
+      VALUES_FILES:
+        description: >-
+          Values files to render the chart with, comma separated and relative to CHART_PATH (for example
+          ci/default-values.yaml,ci/gateway-values.yaml). Each one is a render of its own.
+        type: string
+        required: false
+        default: ""
+      DEFAULT_VALUES:
+        description: Also render the chart with its default values alone
+        type: boolean
+        required: false
+        default: true
+      KUBERNETES_VERSION:
+        description: Kubernetes version the manifests are checked against (for example 1.31.0)
+        type: string
+        required: false
+        default: 1.31.0
+      KUBECONFORM_VERSION:
+        description: kubeconform version
+        type: string
+        required: false
+        # renovate: datasource=github-releases depName=yannh/kubeconform
+        default: v0.7.0
+      HELM_VERSION:
+        description: Helm version (for example v3.19.0)
+        type: string
+        required: false
+        default: latest
+      RUNS_ON:
+        description: Runner labels as JSON array
+        type: string
+        required: false
+        default: '["ubuntu-24.04"]'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  render:
+    name: Render and validate
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310  # v5.0.1
+        with:
+          version: ${{ inputs.HELM_VERSION }}
+
+      - name: Install kubeconform
+        env:
+          KUBECONFORM_VERSION: ${{ inputs.KUBECONFORM_VERSION }}
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" kubeconform
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Render and validate
+        env:
+          CHART_PATH: ${{ inputs.CHART_PATH }}
+          VALUES_FILES: ${{ inputs.VALUES_FILES }}
+          DEFAULT_VALUES: ${{ inputs.DEFAULT_VALUES }}
+          KUBERNETES_VERSION: ${{ inputs.KUBERNETES_VERSION }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "$CHART_PATH/Chart.yaml" ]; then
+            echo "::error::Chart.yaml not found in '$CHART_PATH'"
+            exit 1
+          fi
+
+          if grep -q '^dependencies:' "$CHART_PATH/Chart.yaml" && grep -q '^  - name:' "$CHART_PATH/Chart.yaml"; then
+            helm dependency build "$CHART_PATH"
+          fi
+
+          # An empty first entry is the default values; the others are values files.
+          runs=()
+          [ "$DEFAULT_VALUES" = "true" ] && runs+=("")
+          IFS=',' read -ra ITEMS <<< "$VALUES_FILES"
+          for file in "${ITEMS[@]}"; do
+            file=$(echo "$file" | xargs)
+            [ -n "$file" ] && runs+=("$file")
+          done
+
+          if [ "${#runs[@]}" -eq 0 ]; then
+            echo "::error::Nothing to render: DEFAULT_VALUES is false and VALUES_FILES is empty"
+            exit 1
+          fi
+
+          for values in "${runs[@]}"; do
+            args=()
+            label="default values"
+            if [ -n "$values" ]; then
+              if [ ! -f "$CHART_PATH/$values" ]; then
+                echo "::error::Values file '$values' not found in '$CHART_PATH'"
+                exit 1
+              fi
+              args+=(--values "$CHART_PATH/$values")
+              label="$values"
+            fi
+            echo "::group::$label"
+            helm template release "$CHART_PATH" "${args[@]}" \
+              | kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version "$KUBERNETES_VERSION"
+            echo "::endgroup::"
+          done
