@@ -43,6 +43,13 @@ invalid squashed commit.
 GitHub names a pull request after its branch by default (`feat/my-branch` becomes `Feat/my branch`), which is not
 a valid title: rename it before merging.
 
+## Dependabot
+
+Dependabot's messages cannot follow the rules: its body is a table of links with lines far over 100 characters. With the
+default configuration, a message that starts like Dependabot's (`build` or `ci`, then `bump`, in either case) is
+ignored. A person's commit is still checked in full. A configuration of your own (`CONFIG_FILE`) decides for itself:
+add an `ignores` entry to keep this.
+
 ## Blocking a merge
 
 A workflow only reports a status. To block merging, mark the job (`lint-commits / Lint commit messages`) as a
