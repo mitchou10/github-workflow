@@ -79,6 +79,10 @@ jobs:
 
           export default {
             extends: ['@commitlint/config-conventional'],
+            // Dependabot's messages cannot follow the rules: its body is a table of links, with lines far over 100
+            // characters, and its subject may start with a capital. Only a message that starts like Dependabot's
+            // (`build` or `ci`, then `bump`) is ignored: a person's commit is still checked in full.
+            ignores: [(message) => /^(build|ci)(\([^)]+\))?: bump /i.test(message)],
             rules: {
               'type-enum': [2, 'always', types],
               'scope-empty': requireScope ? [2, 'never'] : [0],
