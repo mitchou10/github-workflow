@@ -13,6 +13,10 @@
 | [scan-gitleaks](scan-gitleaks.md) | gitleaks, what is scanned, allowlists |
 | [scan-trivy](scan-trivy.md) | Trivy: fs, config and image scans |
 | [lint-helm](lint-helm.md) | Helm chart lint, helm-docs check |
+| [lint-helm-schema](lint-helm-schema.md) | Values files against the chart schema |
+| [lint-helm-render](lint-helm-render.md) | Rendered manifests against the Kubernetes schemas |
+| [release-helm](release-helm.md) | Package and push a chart to an OCI registry |
+| [attest-helm](attest-helm.md) | Sign a chart, attach its provenance |
 | [build-docker](build-docker.md) | Build and push images, tags, multi-platform |
 | [path-filter](path-filter.md) | Run jobs only when their folder changed |
 | [status-gate](status-gate.md) | One required check for the whole workflow |

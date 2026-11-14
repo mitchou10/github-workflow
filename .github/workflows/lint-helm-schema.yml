@@ -1,0 +1,88 @@
+# Adapted from this-is-tobi/github-workflows (lint-helm-schema.yml).
+name: Lint Helm schema
+
+on:
+  workflow_call:
+    inputs:
+      CHART_PATH:
+        description: Path to the Helm chart directory containing the JSON schema
+        type: string
+        required: true
+      SCHEMA_FILE:
+        description: JSON schema filename relative to CHART_PATH
+        type: string
+        required: false
+        default: values.schema.json
+      VALUES_FILES:
+        description: Comma-separated list of values files to validate against the schema, relative to CHART_PATH (e.g., 'values.yaml,test-values.yaml,values/dev.yaml')
+        type: string
+        required: false
+        default: values.yaml
+      RUNS_ON:
+        description: Runner labels as JSON array (e.g., '["ubuntu-24.04"]' or '["self-hosted", "linux"]')
+        required: false
+        type: string
+        default: '["ubuntu-24.04"]'
+
+# Every `run:` below is bash. Without this GitHub reads the shell off the runner
+# — PowerShell on Windows — so a caller pointing RUNS_ON at one gets a parse
+# error where a run should be. `bash` is the portable value: GitHub resolves it
+# to Git Bash on Windows and to /usr/bin/bash elsewhere.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint-helm-schema:
+    name: Validate Helm values against schema
+    runs-on: ${{ fromJSON(inputs.RUNS_ON) }}
+    permissions:
+      contents: read
+    steps:
+    - name: Checks-out repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      with:
+        # No later step talks to the git remote, so the job's token need not
+        # stay in .git/config while the rest of the job runs.
+        persist-credentials: false
+
+    # Exact version: third-party code executed in the job, and an unpinned
+    # install would let a new upstream release change what runs here.
+    - name: Install check-jsonschema
+      run: pip install check-jsonschema==0.33.0
+
+    - name: Validate values files against JSON schema
+      working-directory: ${{ inputs.CHART_PATH }}
+      env:
+        CHART_PATH: ${{ inputs.CHART_PATH }}
+        SCHEMA_FILE: ${{ inputs.SCHEMA_FILE }}
+        VALUES_FILES: ${{ inputs.VALUES_FILES }}
+      run: |
+        set -euo pipefail
+
+        if [ ! -f "$SCHEMA_FILE" ]; then
+          echo "::error::Schema file '$SCHEMA_FILE' not found in '$CHART_PATH'"
+          exit 1
+        fi
+
+        FILES=()
+
+        IFS=',' read -ra ITEMS <<< "$VALUES_FILES"
+        for file in "${ITEMS[@]}"; do
+          file=$(echo "$file" | xargs)
+          if [ -n "$file" ] && [ -f "$file" ]; then
+            FILES+=("$file")
+          elif [ -n "$file" ]; then
+            echo "::warning::Values file '$file' not found, skipping"
+          fi
+        done
+
+        if [ "${#FILES[@]}" -eq 0 ]; then
+          echo "::error::No values files found to validate"
+          exit 1
+        fi
+
+        echo "Validating files against schema '$SCHEMA_FILE':"
+        printf '  - %s\n' "${FILES[@]}"
+
+        check-jsonschema --schemafile "$SCHEMA_FILE" "${FILES[@]}"
