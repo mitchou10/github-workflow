@@ -13,6 +13,10 @@ Reusable GitHub Actions workflows, independent from any organisation's shared ca
 | [scan-gitleaks.yml](.github/workflows/scan-gitleaks.yml) | gitleaks: leaked secrets in the git history (optional Security tab upload) |
 | [scan-trivy.yml](.github/workflows/scan-trivy.yml) | Trivy: dependencies, misconfigurations, container images |
 | [lint-helm.yml](.github/workflows/lint-helm.yml) | chart-testing + helm-docs: Helm chart lint |
+| [lint-helm-schema.yml](.github/workflows/lint-helm-schema.yml) | Values files against the chart's `values.schema.json` |
+| [lint-helm-render.yml](.github/workflows/lint-helm-render.yml) | `helm template` + kubeconform: the rendered manifests are valid |
+| [release-helm.yml](.github/workflows/release-helm.yml) | Package a chart and push it to an OCI registry |
+| [attest-helm.yml](.github/workflows/attest-helm.yml) | Sign a chart (cosign, keyless) and attach its build provenance |
 | [build-docker.yml](.github/workflows/build-docker.yml) | buildx: build and push an image to ghcr.io or another registry |
 | [path-filter.yml](.github/workflows/path-filter.yml) | Which folders changed, to skip the jobs that do not apply |
 | [status-gate.yml](.github/workflows/status-gate.yml) | One required check that aggregates the other jobs |
